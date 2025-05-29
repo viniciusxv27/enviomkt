@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Broadcast VIVO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>📤 Envio de Mensagens - Rede Confiança</h1>
+        <form method="POST" enctype="multipart/form-data">
+            <label>📁 Enviar arquivo Excel:</label>
+            <input type="file" name="excel_file" required>
+            
+            <label>💬 Mensagem:</label>
+            <textarea name="message" rows="4" required placeholder="Digite a mensagem aqui..."></textarea>
+
+            <button type="submit">Enviar</button>
+        </form>
+
+        {% if success %}
+            <div class="success">
+                ✅ Arquivo processado com sucesso!
+                <pre>Suas mensagens estão sendo enviadas, você já pode fechar a aba</pre>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
