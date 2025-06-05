@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import requests
 from dotenv import load_dotenv
+import base64
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -34,58 +35,67 @@ def index():# Verifica se o usuário está autenticado
     if request.method == 'POST':
         file = request.files['excel_file']
         message = request.form['message']
+        haImg = False
         leads = []
 
-        if test_number:
-            try:
-                if file and file.filename.endswith('.xlsx'):
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-                    file.save(filepath)
+        if request.files['image_file']:
+            haImg = True
+            image_file = request.files['image_file']
+            image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_file.filename)
+            image_file.save(image_path)
+            with open(image_path, "rb") as img_file:
+                image_base64 = base64.b64encode(img_file.read()).decode('utf-8')
 
-                    df = pd.read_excel(filepath)
-                    data_list = df.to_dict(orient='records')  # Converte cada linha em um dicionário
+        try:
+            if file and file.filename.endswith('.xlsx'):
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+                file.save(filepath)
 
-                    # Aqui você pode usar os dados e aplicar lógica de envio, por exemplo:
-                    print("Mensagem escrita:", message)
-                    print("Dados importados:")
-                    for row in data_list:
-                        filial = row.get('Filial')
-                        data = row.get('Data')
-                        nome = row.get('Nome Cliente')
-                        plano = row.get('Plano')
-                        telefone = row.get('Acesso')
+                df = pd.read_excel(filepath)
+                data_list = df.to_dict(orient='records')
 
-                        leads.append({
-                            'filial': str(filial),
-                            'data': str(data),
-                            'nome': str(nome),
-                            'plano': str(plano),
-                            'telefone': str(telefone)
-                        })
+                print("Mensagem escrita:", message)
+                print("Dados importados:")
+                for row in data_list:
+                    filial = row.get('Filial')
+                    data = row.get('Data')
+                    nome = row.get('Nome Cliente')
+                    plano = row.get('Plano')
+                    telefone = row.get('Acesso')
 
-                    payload = {
-                        'message': message,
-                        'leads': leads
-                    }
+                    leads.append({
+                        'filial': str(filial),
+                        'data': str(data),
+                        'nome': str(nome),
+                        'plano': str(plano),
+                        'telefone': str(telefone)
+                    })
 
-                    requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook-test/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
-                    return render_template('index.html', success=True, data=payload)
-                
-            except ValueError:
-                if file and file.filename.endswith('.xlsx'):
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-                    file.save(filepath)
+                payload = {
+                    'message': message,
+                    'leads': leads,
+                    'haImg': haImg,
+                    'base64': image_base64 if haImg else None
+                }
 
-                    df = pd.read_excel(filepath)
-                    data_list = df.to_dict(orient='records')  # Converte cada linha em um dicionário
+                requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook-test/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
+                return render_template('index.html', success=True, data=payload)
+            
+        except ValueError:
+            if file and file.filename.endswith('.xlsx'):
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+                file.save(filepath)
 
-                    # Aqui você pode usar os dados e aplicar lógica de envio, por exemplo:
-                    print("Mensagem escrita:", message)
-                    print("Dados importados:")
-                    for row in data_list:
-                        print(row)
+                df = pd.read_excel(filepath)
+                data_list = df.to_dict(orient='records')  # Converte cada linha em um dicionário
 
-                    return render_template('index.html', success=True, data=data_list)
+                # Aqui você pode usar os dados e aplicar lógica de envio, por exemplo:
+                print("Mensagem escrita:", message)
+                print("Dados importados:")
+                for row in data_list:
+                    print(row)
+
+                return render_template('index.html', success=True, data=data_list)
 
     return render_template('index.html', success=False)
 
