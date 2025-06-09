@@ -101,11 +101,29 @@
             </div>
             <button type="submit">Enviar</button>
         </form>
+        
+        <div style="margin-top: 24px; background: #f3f4f6; color: #333; border-left: 5px solid #6c47ff; padding: 14px; border-radius: 8px; width: 100%; text-align: left; font-size: 0.98rem;">
+            <strong>Legenda para variáveis na mensagem:</strong><br>
+            <ul style="margin: 8px 0 0 18px; padding: 0;">
+                <li><b>@nome</b>: nome do cliente</li>
+                <li><b>@filial</b>: loja que comprou</li>
+                <li><b>@data</b>: data da compra</li>
+                <li><b>@plano</b>: plano contratado</li>
+                <li><b>@telefone</b>: número do cliente</li>
+            </ul>
+        </div>
+
+        {% if error %}
+            <div class="success" style="background: #ffebee; color: #c62828; border-left: 5px solid #e53935;">
+                ❌ {{ error }}
+            </div>
+        {% endif %}
+
 
         {% if success %}
             <div class="success">
                 ✅ Arquivo processado com sucesso!
-                <pre>Suas mensagens estão sendo enviadas, você já pode fechar a aba</pre>
+                <pre>Mensagens sendo enviadas. Pode fechar a aba.</pre>
             </div>
         {% endif %}
     </div>

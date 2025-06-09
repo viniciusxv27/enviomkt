@@ -78,7 +78,7 @@ def index():# Verifica se o usuário está autenticado
                     'base64': image_base64 if haImg else None
                 }
 
-                requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook-test/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
+                requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
                 return render_template('index.html', success=True, data=payload)
             
         except ValueError:
