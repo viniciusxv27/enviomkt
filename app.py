@@ -35,6 +35,8 @@ def index():# Verifica se o usuário está autenticado
     if request.method == 'POST':
         file = request.files['excel_file']
         message = request.form['message']
+        data_agendamento = request.form['data_agendamento'] if request.form['data_agendamento'] else None
+        horario_agendamento = request.form['horario_agendamento'] if request.form['horario_agendamento'] else None
         haImg = False
         leads = []
 
@@ -75,7 +77,9 @@ def index():# Verifica se o usuário está autenticado
                     'message': message,
                     'leads': leads,
                     'haImg': haImg,
-                    'base64': image_base64 if haImg else None
+                    'base64': image_base64 if haImg else None,
+                    'data_agendamento' : data_agendamento,
+                    'horario_agendamento': horario_agendamento
                 }
 
                 requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
