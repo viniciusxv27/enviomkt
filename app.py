@@ -33,20 +33,32 @@ def index():# Verifica se o usuário está autenticado
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        # Verificar se todos os campos obrigatórios estão presentes
+        if 'excel_file' not in request.files:
+            return render_template('index.html', error='Arquivo Excel é obrigatório')
+        
         file = request.files['excel_file']
-        message = request.form['message']
-        data_agendamento = request.form['data_agendamento'] if request.form['data_agendamento'] else None
-        horario_agendamento = request.form['horario_agendamento'] if request.form['horario_agendamento'] else None
+        if file.filename == '':
+            return render_template('index.html', error='Nenhum arquivo Excel foi selecionado')
+            
+        message = request.form.get('message', '').strip()
+        if not message:
+            return render_template('index.html', error='Mensagem é obrigatória')
+            
+        data_agendamento = request.form.get('schedule_date') if request.form.get('schedule_date') else None
+        horario_agendamento = request.form.get('schedule_time') if request.form.get('schedule_time') else None
         haImg = False
         leads = []
 
-        if request.files['image_file']:
+        if request.files['image_file'] and request.files['image_file'].filename:
             haImg = True
             image_file = request.files['image_file']
             image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_file.filename)
             image_file.save(image_path)
             with open(image_path, "rb") as img_file:
                 image_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+        else:
+            image_base64 = None
 
         try:
             if file and file.filename.endswith('.xlsx'):
@@ -57,6 +69,8 @@ def index():# Verifica se o usuário está autenticado
                 data_list = df.to_dict(orient='records')
 
                 print("Mensagem escrita:", message)
+                print("Data agendamento:", data_agendamento)
+                print("Horário agendamento:", horario_agendamento)
                 print("Dados importados:")
                 for row in data_list:
                     filial = row.get('Filial')
@@ -66,11 +80,11 @@ def index():# Verifica se o usuário está autenticado
                     telefone = row.get('Acesso')
 
                     leads.append({
-                        'filial': str(filial),
-                        'data': str(data),
-                        'nome': str(nome),
-                        'plano': str(plano),
-                        'telefone': str(telefone)
+                        'filial': str(filial) if filial else '',
+                        'data': str(data) if data else '',
+                        'nome': str(nome) if nome else '',
+                        'plano': str(plano) if plano else '',
+                        'telefone': str(telefone) if telefone else ''
                     })
 
                 payload = {
@@ -78,30 +92,21 @@ def index():# Verifica se o usuário está autenticado
                     'leads': leads,
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
-                    'data_agendamento' : data_agendamento,
+                    'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento
                 }
 
-                requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)  # Substitua pela URL do seu endpoint
+                print("Payload sendo enviado:", payload)
+                response = requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)
+                print("Resposta do webhook:", response.status_code, response.text)
                 return render_template('index.html', success=True, data=payload)
+            else:
+                return render_template('index.html', error='Por favor, selecione um arquivo Excel válido (.xlsx)')
             
-        except ValueError:
-            if file and file.filename.endswith('.xlsx'):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-                file.save(filepath)
-
-                df = pd.read_excel(filepath)
-                data_list = df.to_dict(orient='records')  # Converte cada linha em um dicionário
-
-                # Aqui você pode usar os dados e aplicar lógica de envio, por exemplo:
-                print("Mensagem escrita:", message)
-                print("Dados importados:")
-                for row in data_list:
-                    print(row)
-
-                return render_template('index.html', success=True, data=data_list)
-
+        except Exception as e:
+            print(f"Erro durante o processamento: {str(e)}")
+            return render_template('index.html', error=f'Erro ao processar arquivo: {str(e)}')
     return render_template('index.html', success=False)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
