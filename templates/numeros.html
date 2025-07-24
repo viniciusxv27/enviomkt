@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Números WhatsApp - VIVO</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e7ff 0%, #f5f7fa 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 40px 36px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(44, 62, 80, 0.15);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0;
+        }
+        .btn {
+            background: linear-gradient(135deg, #6c47ff 0%, #5b3de8 100%);
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(108, 71, 255, 0.3);
+        }
+        .btn:hover {
+            background: linear-gradient(135deg, #5b3de8 0%, #4b2dc9 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 71, 255, 0.4);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Números WhatsApp</h1>
+            <div>
+                <a href="/numeros/criar" class="btn">➕ Adicionar Número</a>
+                <a href="/" class="btn-secondary" style="margin-left: 12px;">← Voltar</a>
+            </div>
+        </div>
+
+        {% if numbers %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Número</th>
+                    <th>Descrição</th>
+                    <th>Remote JID</th>
+                    <th>Instância</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for number in numbers %}
+                <tr>
+                    <td><strong>{{ number.numero }}</strong></td>
+                    <td>{{ number.descricao }}</td>
+                    <td><code style="background: #f1f1f1; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">{{ number.remotejid }}</code></td>
+                    <td>{{ number.instancia }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <h3>📵 Nenhum número cadastrado</h3>
+            <p>Adicione seu primeiro número do WhatsApp para começar a enviar broadcasts.</p>
+            <a href="/numeros/criar" class="btn" style="margin-top: 20px;">➕ Adicionar Primeiro Número</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

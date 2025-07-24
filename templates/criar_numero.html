@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Adicionar Número WhatsApp - VIVO</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e7ff 0%, #f5f7fa 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            max-width: 500px;
+            margin: 40px auto;
+            padding: 40px 36px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(44, 62, 80, 0.15);
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 6px;
+            display: block;
+            font-size: 0.95rem;
+        }
+        input, textarea {
+            width: 100%;
+            border: 1px solid #cfd8dc;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            box-sizing: border-box;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #6c47ff;
+            box-shadow: 0 0 0 2px rgba(108, 71, 255, 0.1);
+        }
+        .btn {
+            background: linear-gradient(135deg, #6c47ff 0%, #5b3de8 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(108, 71, 255, 0.3);
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: linear-gradient(135deg, #5b3de8 0%, #4b2dc9 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 71, 255, 0.4);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: inline-block;
+            margin-top: 16px;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 5px solid #e53935;
+            padding: 14px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .help-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 4px;
+        }
+        .example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #495057;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>➕ Adicionar Número WhatsApp</h1>
+
+        {% if error %}
+            <div class="error">
+                ❌ {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="numero">📱 Número do WhatsApp:</label>
+                <input type="text" id="numero" name="numero" required placeholder="Ex: +5511999999999">
+                <div class="help-text">Digite o número completo com código do país</div>
+            </div>
+
+            <div class="form-group">
+                <label for="remotejid">🔑 Remote JID:</label>
+                <input type="text" id="remotejid" name="remotejid" required placeholder="Ex: 5511999999999@s.whatsapp.net">
+                <div class="help-text">Identificador único do WhatsApp</div>
+                <div class="example">5511999999999@s.whatsapp.net</div>
+            </div>
+
+            <div class="form-group">
+                <label for="descricao">📝 Descrição:</label>
+                <input type="text" id="descricao" name="descricao" required placeholder="Ex: WhatsApp Vendas - Filial Centro">
+                <div class="help-text">Nome amigável para identificar este número</div>
+            </div>
+
+            <div class="form-group">
+                <label for="instancia">🖥️ Instância:</label>
+                <input type="text" id="instancia" name="instancia" required placeholder="Ex: instance_01">
+                <div class="help-text">Nome da instância do WhatsApp</div>
+            </div>
+
+            <button type="submit" class="btn">💾 Salvar Número</button>
+        </form>
+
+        <a href="/numeros" class="btn-secondary">← Voltar para Lista</a>
+    </div>
+</body>
+</html>

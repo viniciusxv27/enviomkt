@@ -4,12 +4,68 @@ import os
 import requests
 from dotenv import load_dotenv
 import base64
+import mysql.connector
+from mysql.connector import Error
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 logado = False
 load_dotenv()
+
+# Configuração do banco de dados
+def get_db_connection():
+    try:
+        connection = mysql.connector.connect(
+            host=os.getenv('DB_HOST', 'localhost'),
+            database=os.getenv('DB_NAME', 'whatsapp'),
+            user=os.getenv('DB_USER', 'root'),
+            password=os.getenv('DB_PASSWORD', '')
+        )
+        return connection
+    except Error as e:
+        print(f"Erro ao conectar ao MySQL: {e}")
+        return None
+
+def get_whatsapp_numbers():
+    """Busca todos os números do WhatsApp cadastrados"""
+    connection = get_db_connection()
+    if not connection:
+        return []
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        query = "SELECT numero, remotejid, descricao, instancia FROM numeros ORDER BY id"
+        cursor.execute(query)
+        numbers = cursor.fetchall()
+        return numbers
+    except Error as e:
+        print(f"Erro ao buscar números: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+def create_whatsapp_number(numero, remotejid, descricao, instancia):
+    """Cria um novo número do WhatsApp"""
+    connection = get_db_connection()
+    if not connection:
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        query = "INSERT INTO numeros (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query, (numero, remotejid, descricao, instancia))
+        connection.commit()
+        return True
+    except Error as e:
+        print(f"Erro ao criar número: {e}")
+        return False
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -27,23 +83,61 @@ def login():
             return render_template('login.html', error='Credenciais inválidas')
     return render_template('login.html')
 
+@app.route('/numeros')
+def numeros():
+    """Lista todos os números cadastrados"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    numbers = get_whatsapp_numbers()
+    return render_template('numeros.html', numbers=numbers)
+
+@app.route('/numeros/criar', methods=['GET', 'POST'])
+def criar_numero():
+    """Cria um novo número"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        numero = request.form.get('numero', '').strip()
+        remotejid = request.form.get('remotejid', '').strip()
+        descricao = request.form.get('descricao', '').strip()
+        instancia = request.form.get('instancia', '').strip()
+        
+        if not all([numero, remotejid, descricao, instancia]):
+            return render_template('criar_numero.html', error='Todos os campos são obrigatórios')
+        
+        if create_whatsapp_number(numero, remotejid, descricao, instancia):
+            return redirect(url_for('numeros'))
+        else:
+            return render_template('criar_numero.html', error='Erro ao criar número')
+    
+    return render_template('criar_numero.html')
+
 @app.route('/', methods=['GET', 'POST'])
 def index():# Verifica se o usuário está autenticado
     if not logado:
         return redirect(url_for('login'))
 
+    # Buscar números disponíveis para o select
+    numbers = get_whatsapp_numbers()
+
     if request.method == 'POST':
         # Verificar se todos os campos obrigatórios estão presentes
         if 'excel_file' not in request.files:
-            return render_template('index.html', error='Arquivo Excel é obrigatório')
+            return render_template('index.html', error='Arquivo Excel é obrigatório', numbers=numbers)
         
         file = request.files['excel_file']
         if file.filename == '':
-            return render_template('index.html', error='Nenhum arquivo Excel foi selecionado')
+            return render_template('index.html', error='Nenhum arquivo Excel foi selecionado', numbers=numbers)
             
         message = request.form.get('message', '').strip()
         if not message:
-            return render_template('index.html', error='Mensagem é obrigatória')
+            return render_template('index.html', error='Mensagem é obrigatória', numbers=numbers)
+
+        instancia = request.form.get('whatsapp_number', '').strip()
+        if not instancia:
+            return render_template('index.html', error='Selecione um número do WhatsApp', numbers=numbers)
             
         data_agendamento = request.form.get('schedule_date') if request.form.get('schedule_date') else None
         horario_agendamento = request.form.get('schedule_time') if request.form.get('schedule_time') else None
@@ -69,6 +163,7 @@ def index():# Verifica se o usuário está autenticado
                 data_list = df.to_dict(orient='records')
 
                 print("Mensagem escrita:", message)
+                print("Número WhatsApp selecionado:", instancia)
                 print("Data agendamento:", data_agendamento)
                 print("Horário agendamento:", horario_agendamento)
                 print("Dados importados:")
@@ -93,20 +188,22 @@ def index():# Verifica se o usuário está autenticado
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
                     'data_agendamento': data_agendamento,
-                    'horario_agendamento': horario_agendamento
+                    'horario_agendamento': horario_agendamento,
+                    'instancia': whatsapp_number
                 }
 
                 print("Payload sendo enviado:", payload)
                 response = requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)
                 print("Resposta do webhook:", response.status_code, response.text)
-                return render_template('index.html', success=True, data=payload)
+                return render_template('index.html', success=True, data=payload, numbers=numbers)
             else:
-                return render_template('index.html', error='Por favor, selecione um arquivo Excel válido (.xlsx)')
+                return render_template('index.html', error='Por favor, selecione um arquivo Excel válido (.xlsx)', numbers=numbers)
             
         except Exception as e:
             print(f"Erro durante o processamento: {str(e)}")
-            return render_template('index.html', error=f'Erro ao processar arquivo: {str(e)}')
-    return render_template('index.html', success=False)
+            return render_template('index.html', error=f'Erro ao processar arquivo: {str(e)}', numbers=numbers)
+    
+    return render_template('index.html', success=False, numbers=numbers)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=8000, debug=True)
