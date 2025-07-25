@@ -189,7 +189,7 @@ def index():# Verifica se o usuário está autenticado
                     'base64': image_base64 if haImg else None,
                     'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento,
-                    'instancia': whatsapp_number
+                    'instancia': instancia
                 }
 
                 print("Payload sendo enviado:", payload)
