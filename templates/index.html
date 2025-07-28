@@ -183,7 +183,7 @@
                 <select name="whatsapp_number" required>
                     <option value="">Selecione um número...</option>
                     {% for number in numbers %}
-                        <option value="{{ number.remotejid }}">{{ number.numero }} - {{ number.descricao }}</option>
+                        <option value="{{ number.instancia }}">{{ number.numero }} - {{ number.descricao }}</option>
                     {% endfor %}
                 </select>
             </div>
