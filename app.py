@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import base64
 import mysql.connector
 from mysql.connector import Error
+import time
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -109,16 +110,56 @@ def get_qrcode_evolution(instance_name):
 def get_instance_status(instance_name):
     """Verifica o status de uma instância na Evolution API"""
     try:
+        # Primeiro tenta buscar instância específica
         url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/fetchInstances"
         headers = get_evolution_api_headers()
         
+        print(f"Verificando status da instância: {instance_name}")
+        print(f"URL: {url}")
+        
         response = requests.get(url, headers=headers)
+        print(f"Response status: {response.status_code}")
+        
         if response.status_code == 200:
             instances = response.json()
-            for instance in instances:
-                if instance.get('instance', {}).get('instanceName') == instance_name:
-                    return instance.get('instance', {}).get('state', 'close')
+            print(f"Instâncias encontradas: {len(instances) if isinstance(instances, list) else 'Não é lista'}")
+            
+            # Se a resposta é uma lista
+            if isinstance(instances, list):
+                for instance in instances:
+                    if isinstance(instance, dict):
+                        # Verifica diferentes estruturas possíveis
+                        instance_data = instance.get('instance', instance)
+                        if instance_data.get('instanceName') == instance_name or instance_data.get('name') == instance_name:
+                            status = instance_data.get('state', instance_data.get('connectionStatus', 'close'))
+                            print(f"Status encontrado: {status}")
+                            return status
+            
+            # Se a resposta é um objeto
+            elif isinstance(instances, dict):
+                for key, instance in instances.items():
+                    if isinstance(instance, dict):
+                        if instance.get('instanceName') == instance_name or instance.get('name') == instance_name:
+                            status = instance.get('state', instance.get('connectionStatus', 'close'))
+                            print(f"Status encontrado: {status}")
+                            return status
+        
+        # Tenta endpoint alternativo
+        url2 = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/{instance_name}"
+        response2 = requests.get(url2, headers=headers)
+        print(f"Tentando URL alternativa: {url2}")
+        print(f"Response status 2: {response2.status_code}")
+        
+        if response2.status_code == 200:
+            data = response2.json()
+            if isinstance(data, dict):
+                status = data.get('state', data.get('connectionStatus', 'close'))
+                print(f"Status alternativo: {status}")
+                return status
+        
+        print("Status não encontrado, retornando 'close'")
         return 'close'
+        
     except Exception as e:
         print(f"Erro ao buscar status da instância: {e}")
         return 'close'
@@ -382,18 +423,33 @@ def check_instance_status(instance_name):
     if not logado:
         return {'status': 'error', 'message': 'Não autorizado'}, 401
     
-    status = get_instance_status(instance_name)
-    qr_code = None
-    
-    # Se não está conectado, tentar buscar QR Code
-    if status != 'open':
-        qr_code = get_qrcode_evolution(instance_name)
-    
-    return {
-        'status': status, 
-        'connected': status == 'open',
-        'qr_code': qr_code
-    }
+    try:
+        status = get_instance_status(instance_name)
+        qr_code = None
+        
+        print(f"Status da instância {instance_name}: {status}")
+        
+        # Se não está conectado, tentar buscar QR Code
+        if status not in ['open', 'connected']:
+            qr_code = get_qrcode_evolution(instance_name)
+            print(f"QR Code obtido: {'Sim' if qr_code else 'Não'}")
+        
+        # Mapear status para valores mais claros
+        connected = status in ['open', 'connected']
+        
+        return {
+            'status': status, 
+            'connected': connected,
+            'qr_code': qr_code,
+            'timestamp': int(time.time()) if 'time' in globals() else None
+        }
+    except Exception as e:
+        print(f"Erro na API de status: {e}")
+        return {
+            'status': 'error',
+            'connected': False,
+            'error': str(e)
+        }, 500
 
 @app.route('/debug/qr/<string:instance_name>')
 def debug_qr(instance_name):

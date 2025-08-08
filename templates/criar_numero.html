@@ -109,36 +109,51 @@
         }
         .qr-container {
             text-align: center;
-            margin: 30px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
+            margin: 30px auto;
+            padding: 30px 20px;
+            background: linear-gradient(145deg, #f8f9fa, #ffffff);
+            border-radius: 20px;
             border: 2px solid #e9ecef;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            max-width: 400px;
         }
         .qr-code {
-            max-width: 256px;
+            max-width: 280px;
             width: 100%;
             height: auto;
-            border: 2px solid #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 3px solid #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            margin: 0 auto;
+            display: block;
         }
         .qr-status {
-            margin-top: 15px;
+            margin-top: 20px;
             font-weight: 600;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            font-size: 1.1rem;
+            padding: 12px 24px;
+            border-radius: 25px;
+            margin: 20px auto;
+            max-width: 280px;
         }
         .status-connected {
-            color: #28a745;
+            color: #155724;
+            background-color: #d4edda;
+            border: 2px solid #c3e6cb;
         }
         .status-waiting {
-            color: #ffc107;
+            color: #856404;
+            background-color: #fff3cd;
+            border: 2px solid #ffeaa7;
         }
         .status-error {
-            color: #dc3545;
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 2px solid #f5c6cb;
         }
         .step-indicator {
             background: #e3f2fd;
@@ -155,6 +170,21 @@
         .step-indicator p {
             margin: 0;
             color: #424242;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: 0 2px 8px rgba(108, 71, 255, 0.2) !important;
+        }
+        .btn:enabled {
+            opacity: 1;
+            cursor: pointer;
+        }
+        .btn:enabled:hover {
+            background: linear-gradient(135deg, #5b3de8 0%, #4b2dc9 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 71, 255, 0.4);
         }
         .hidden {
             display: none;
@@ -198,15 +228,25 @@
 
         {% if qr_code %}
         <div class="qr-container">
-            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code WhatsApp" class="qr-code" onerror="this.style.display='none'; document.getElementById('qr-error').style.display='block';">
-            <div id="qr-error" style="display: none; color: #dc3545; margin-top: 10px;">
+            <h3 style="color: #2c3e50; margin: 0 0 20px 0; font-size: 1.2rem;">
+                📷 Escaneie o QR Code
+            </h3>
+            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code WhatsApp" class="qr-code" onerror="this.style.display='none'; document.getElementById('qr-error').style.display='block';">
+            </div>
+            <div id="qr-error" style="display: none; color: #dc3545; margin: 20px 0; font-size: 1rem;">
                 ❌ Erro ao carregar QR Code. Tentando novamente...
             </div>
             <div class="qr-status status-waiting" id="connectionStatus">
-                🔄 Aguardando conexão...
+                � Escaneie o QR Code com seu WhatsApp
             </div>
-            <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
-                Abra o WhatsApp → Menu (⋮) → WhatsApp Web → Escanear código
+            <p style="margin: 20px 0 0 0; color: #666; font-size: 0.95rem; line-height: 1.5;">
+                <strong>Como fazer:</strong><br>
+                1. Abra o WhatsApp no seu celular<br>
+                2. Toque no menu (⋮) no canto superior<br>
+                3. Selecione "WhatsApp Web"<br>
+                4. Toque em "Escanear código"<br>
+                5. Aponte a câmera para o código acima
             </p>
         </div>
         {% else %}
@@ -214,8 +254,9 @@
             <div style="color: #dc3545; font-size: 1.2rem; margin: 20px 0;">
                 ❌ QR Code não disponível
             </div>
-            <div style="color: #666; font-size: 0.9rem;">
-                Verificando conexão com Evolution API...
+            <div style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Verificando conexão com Evolution API...<br>
+                Certifique-se de que a API esteja funcionando corretamente.
             </div>
             <button type="button" onclick="window.location.reload()" class="btn" style="margin-top: 15px;">
                 🔄 Tentar Novamente
@@ -266,51 +307,99 @@
 
     {% if show_qr %}
     <script>
+        let isConnected = false;
+        let statusCheckCount = 0;
+        const maxStatusChecks = 100; // Máximo 5 minutos (100 * 3 segundos)
+        
         // Verificar status da conexão a cada 3 segundos
         function checkConnectionStatus() {
+            statusCheckCount++;
+            console.log(`Verificação ${statusCheckCount}: Checando status da instância {{ instancia }}`);
+            
             fetch('/api/instance-status/{{ instancia }}')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Status response:', data);
+                    
                     const statusDiv = document.getElementById('connectionStatus');
                     const saveButton = document.getElementById('saveButton');
                     const qrImage = document.querySelector('.qr-code');
-                    
-                    console.log('Status response:', data);
+                    const qrError = document.getElementById('qr-error');
                     
                     if (data.connected) {
+                        console.log('WhatsApp conectado!');
+                        isConnected = true;
                         statusDiv.className = 'qr-status status-connected';
-                        statusDiv.innerHTML = '✅ WhatsApp Conectado!';
+                        statusDiv.innerHTML = '✅ WhatsApp Conectado! Agora você pode prosseguir.';
                         saveButton.disabled = false;
+                        saveButton.style.opacity = '1';
+                        saveButton.style.cursor = 'pointer';
+                        
+                        // Para as verificações após conectar
+                        setTimeout(() => {
+                            clearInterval(statusInterval);
+                            console.log('Parou verificações - WhatsApp conectado');
+                        }, 2000);
+                        
                     } else if (data.status === 'connecting') {
                         statusDiv.className = 'qr-status status-waiting';
-                        statusDiv.innerHTML = '🔄 Conectando...';
+                        statusDiv.innerHTML = '🔄 Conectando... Aguarde um momento.';
+                        
                     } else {
                         statusDiv.className = 'qr-status status-waiting';
-                        statusDiv.innerHTML = '🔄 Aguardando conexão...';
+                        statusDiv.innerHTML = '� Escaneie o QR Code com seu WhatsApp';
                         
                         // Atualizar QR Code se disponível
                         if (data.qr_code && qrImage) {
+                            console.log('Atualizando QR Code');
                             qrImage.src = 'data:image/png;base64,' + data.qr_code;
                             qrImage.style.display = 'block';
-                            document.getElementById('qr-error').style.display = 'none';
+                            if (qrError) qrError.style.display = 'none';
                         }
+                    }
+                    
+                    // Para as verificações se exceder o limite
+                    if (statusCheckCount >= maxStatusChecks) {
+                        clearInterval(statusInterval);
+                        statusDiv.className = 'qr-status status-error';
+                        statusDiv.innerHTML = '⏱️ Tempo esgotado. Recarregue a página para tentar novamente.';
+                        console.log('Parou verificações - tempo esgotado');
                     }
                 })
                 .catch(error => {
                     console.error('Erro ao verificar status:', error);
                     const statusDiv = document.getElementById('connectionStatus');
                     statusDiv.className = 'qr-status status-error';
-                    statusDiv.innerHTML = '❌ Erro de conexão com API';
+                    statusDiv.innerHTML = '❌ Erro de conexão. Recarregando...';
+                    
+                    // Tentar recarregar após erro
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
                 });
         }
 
         // Verificar status inicial e depois a cada 3 segundos
+        console.log('Iniciando verificação de status');
         checkConnectionStatus();
         const statusInterval = setInterval(checkConnectionStatus, 3000);
         
         // Para o intervalo quando sair da página
         window.addEventListener('beforeunload', function() {
             clearInterval(statusInterval);
+            console.log('Parou verificações - saindo da página');
+        });
+        
+        // Melhorar visual do botão salvar
+        document.addEventListener('DOMContentLoaded', function() {
+            const saveButton = document.getElementById('saveButton');
+            if (saveButton) {
+                saveButton.style.opacity = '0.5';
+                saveButton.style.cursor = 'not-allowed';
+            }
         });
     </script>
     {% endif %}
