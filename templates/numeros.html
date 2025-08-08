@@ -193,8 +193,8 @@
                             <a href="/numeros/editar/{{ number.id }}" class="btn-sm btn-edit">
                                 ✏️ Editar
                             </a>
-                            {% if number.remotejid %}
-                            <a href="/mensagens/{{ number.instancia }}/{{ number.remotejid|replace('@', '%40')|replace(':', '%3A') }}" class="btn-sm btn-messages">
+                            {% if number.remoteJid %}
+                            <a href="/mensagens/{{ number.instancia }}/{{ number.remoteJid|replace('@', '%40')|replace(':', '%3A') }}" class="btn-sm btn-messages">
                                 💬 Ver
                             </a>
                             {% else %}
