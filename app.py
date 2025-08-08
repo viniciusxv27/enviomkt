@@ -208,7 +208,7 @@ def update_whatsapp_number_description(numero_id, new_description):
     
     try:
         cursor = connection.cursor()
-        query = "UPDATE whatsapp_numbers SET descricao = %s WHERE id = %s"
+        query = "UPDATE numeros SET descricao = %s WHERE id = %s"
         cursor.execute(query, (new_description, numero_id))
         connection.commit()
         return True
@@ -251,63 +251,39 @@ def get_evolution_db_connection():
 
 def get_whatsapp_numbers():
     """Busca todos os números do WhatsApp cadastrados com status da Evolution"""
-    # Conectar ao banco principal
     connection = get_db_connection()
     if not connection:
         return []
     
-    # Conectar ao banco da Evolution
-    evolution_connection = get_evolution_db_connection()
-    
     try:
         cursor = connection.cursor(dictionary=True)
-        # Buscar dados da tabela whatsapp_numbers do sistema principal
-        query = "SELECT * FROM whatsapp_numbers ORDER BY id"
+        # Buscar dados da tabela numeros do sistema principal
+        query = "SELECT * FROM numeros ORDER BY id"
         cursor.execute(query)
         numbers = cursor.fetchall()
         
-        # Para cada número, verificar status na Evolution API
-        if evolution_connection:
-            evolution_cursor = evolution_connection.cursor(dictionary=True)
-            
-            for number in numbers:
-                try:
-                    # Buscar status da instância na Evolution
-                    query_evolution = "SELECT connectionStatus, ownerJid FROM Instance WHERE name = %s"
-                    evolution_cursor.execute(query_evolution, (number['instancia'],))
-                    instance_data = evolution_cursor.fetchone()
-                    
-                    if instance_data:
-                        status = instance_data['connectionStatus']
-                        if status == 'open':
-                            number['status'] = 'Conectado'
-                            number['status_class'] = 'connected'
-                        elif status == 'connecting':
-                            number['status'] = 'Conectando'
-                            number['status_class'] = 'connecting'
-                        else:
-                            number['status'] = 'Desconectado'
-                            number['status_class'] = 'disconnected'
-                        
-                        number['ownerJid'] = instance_data['ownerJid']
-                    else:
-                        number['status'] = 'Não encontrado'
-                        number['status_class'] = 'disconnected'
-                        number['ownerJid'] = None
-                        
-                except Error as e:
-                    print(f"Erro ao verificar status da instância {number['instancia']}: {e}")
-                    number['status'] = 'Erro'
+        print(f"Números encontrados no banco principal: {len(numbers)}")
+        
+        # Para cada número, verificar status na Evolution API via HTTP
+        for number in numbers:
+            try:
+                # Verificar status via API da Evolution (mais confiável)
+                status = get_instance_status(number['instancia'])
+                
+                if status in ['open', 'connected']:
+                    number['status'] = 'Conectado'
+                    number['status_class'] = 'connected'
+                elif status == 'connecting':
+                    number['status'] = 'Conectando'
+                    number['status_class'] = 'connecting'
+                else:
+                    number['status'] = 'Desconectado'
                     number['status_class'] = 'disconnected'
-                    number['ownerJid'] = None
-            
-            evolution_cursor.close()
-        else:
-            # Se não conseguir conectar com a Evolution, marcar todos como desconectado
-            for number in numbers:
+                    
+            except Exception as e:
+                print(f"Erro ao verificar status da instância {number['instancia']}: {e}")
                 number['status'] = 'Desconectado'
                 number['status_class'] = 'disconnected'
-                number['ownerJid'] = None
         
         return numbers
         
@@ -315,11 +291,9 @@ def get_whatsapp_numbers():
         print(f"Erro ao buscar números: {e}")
         return []
     finally:
-        if connection.is_connected():
+        if connection and connection.is_connected():
             cursor.close()
             connection.close()
-        if evolution_connection and evolution_connection.is_connected():
-            evolution_connection.close()
 
 def create_whatsapp_number(numero, remotejid, descricao, instancia):
     """Cria um novo número do WhatsApp"""
@@ -329,7 +303,8 @@ def create_whatsapp_number(numero, remotejid, descricao, instancia):
     
     try:
         cursor = connection.cursor()
-        query = "INSERT INTO whatsapp_numbers (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
+        # Usar a tabela correta: numeros
+        query = "INSERT INTO numeros (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
         cursor.execute(query, (numero, remotejid, descricao, instancia))
         connection.commit()
         return True
@@ -487,7 +462,7 @@ def editar_numero(numero_id):
     # Buscar dados do número
     try:
         cursor = connection.cursor(dictionary=True)
-        query = "SELECT * FROM whatsapp_numbers WHERE id = %s"
+        query = "SELECT * FROM numeros WHERE id = %s"
         cursor.execute(query, (numero_id,))
         numero = cursor.fetchone()
         
