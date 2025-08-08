@@ -127,6 +127,13 @@
         .btn-messages:hover {
             background-color: #1e7e34;
         }
+        .btn-reconnect {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .btn-reconnect:hover {
+            background-color: #e0a800;
+        }
         .actions-cell {
             white-space: nowrap;
         }
@@ -171,6 +178,11 @@
                         <a href="/mensagens/{{ number.instancia }}/{{ number.remotejid }}" class="btn-sm btn-messages">
                             💬 Mensagens
                         </a>
+                        {% if number.status_class == 'disconnected' %}
+                        <a href="/numeros/reconectar/{{ number.instancia }}" class="btn-sm btn-reconnect">
+                            🔄 Reconectar
+                        </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

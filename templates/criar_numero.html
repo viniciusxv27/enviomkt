@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Adicionar Número WhatsApp - VIVO</title>
+    <title>{% if reconnect %}Reconectar{% else %}Adicionar{% endif %} Número WhatsApp - VIVO</title>
     <style>
         body {
             background: linear-gradient(135deg, #e0e7ff 0%, #f5f7fa 100%);
@@ -193,7 +193,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>➕ Adicionar Número WhatsApp</h1>
+        <h1>{% if reconnect %}🔄 Reconectar{% else %}➕ Adicionar{% endif %} Número WhatsApp</h1>
 
         {% if error %}
             <div class="error">
@@ -201,7 +201,7 @@
             </div>
         {% endif %}
 
-        {% if not show_qr %}
+        {% if not show_qr and not reconnect %}
         <!-- Passo 1: Criar Instância -->
         <div class="step-indicator">
             <h3>📱 Passo 1: Criar Instância WhatsApp</h3>
@@ -219,10 +219,10 @@
             <button type="submit" class="btn">🚀 Criar Instância</button>
         </form>
 
-        {% else %}
+        {% elif show_qr or reconnect %}
         <!-- Passo 2: Escanear QR Code -->
         <div class="step-indicator">
-            <h3>📷 Passo 2: Conectar WhatsApp</h3>
+            <h3>📷 {% if reconnect %}Reconectar WhatsApp{% else %}Passo 2: Conectar WhatsApp{% endif %}</h3>
             <p>Escaneie o QR Code abaixo com o WhatsApp do seu celular</p>
         </div>
 
@@ -305,7 +305,7 @@
         <a href="/numeros" class="btn-secondary">← Voltar para Lista</a>
     </div>
 
-    {% if show_qr %}
+    {% if show_qr or reconnect %}
     <script>
         let isConnected = false;
         let statusCheckCount = 0;
@@ -333,10 +333,19 @@
                         console.log('WhatsApp conectado!');
                         isConnected = true;
                         statusDiv.className = 'qr-status status-connected';
+                        
+                        {% if reconnect %}
+                        statusDiv.innerHTML = '✅ WhatsApp Reconectado com Sucesso!';
+                        // Para reconexão, redirecionar para lista após conectar
+                        setTimeout(() => {
+                            window.location.href = '/numeros';
+                        }, 2000);
+                        {% else %}
                         statusDiv.innerHTML = '✅ WhatsApp Conectado! Agora você pode prosseguir.';
                         saveButton.disabled = false;
                         saveButton.style.opacity = '1';
                         saveButton.style.cursor = 'pointer';
+                        {% endif %}
                         
                         // Para as verificações após conectar
                         setTimeout(() => {

@@ -165,40 +165,75 @@ def get_instance_status(instance_name):
         return 'close'
 
 def get_messages_from_chat(instance_name, remote_jid, limit=50):
-    """Busca mensagens de um chat específico"""
+    """Busca mensagens de um chat específico da Evolution API"""
+    # Primeiro tenta buscar do banco de dados da Evolution
     connection = get_evolution_db_connection()
-    if not connection:
-        return []
+    messages = []
     
-    try:
-        cursor = connection.cursor(dictionary=True)
-        query = """
-        SELECT m.*, c.name as contact_name 
-        FROM Message m 
-        LEFT JOIN Contact c ON m.remoteJid = c.remoteJid AND m.instance = c.instance
-        WHERE m.instance = %s AND m.remoteJid = %s 
-        ORDER BY m.messageTimestamp DESC 
-        LIMIT %s
-        """
-        cursor.execute(query, (instance_name, remote_jid, limit))
-        messages = cursor.fetchall()
-        
-        # Processar mensagens para formato mais amigável
-        for msg in messages:
-            if msg['messageTimestamp']:
-                import datetime
-                msg['formatted_time'] = datetime.datetime.fromtimestamp(
-                    msg['messageTimestamp'] / 1000
-                ).strftime('%d/%m/%Y %H:%M')
-        
-        return messages
-    except Error as e:
-        print(f"Erro ao buscar mensagens: {e}")
-        return []
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+    if connection:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            query = """
+            SELECT m.*, c.name as contact_name 
+            FROM Message m 
+            LEFT JOIN Contact c ON m.remoteJid = c.remoteJid AND m.instance = c.instance
+            WHERE m.instance = %s AND m.remoteJid = %s 
+            ORDER BY m.messageTimestamp DESC 
+            LIMIT %s
+            """
+            cursor.execute(query, (instance_name, remote_jid, limit))
+            messages = cursor.fetchall()
+            print(f"Mensagens encontradas no banco: {len(messages)}")
+            
+        except Error as e:
+            print(f"Erro ao buscar mensagens do banco: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+    
+    # Se não encontrou mensagens no banco, tenta buscar via API
+    if not messages:
+        try:
+            print("Tentando buscar mensagens via API Evolution...")
+            url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/chat/findMessages/{instance_name}"
+            headers = get_evolution_api_headers()
+            
+            payload = {
+                "where": {
+                    "remoteJid": remote_jid
+                },
+                "limit": limit
+            }
+            
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                api_data = response.json()
+                if api_data and 'data' in api_data:
+                    messages = api_data['data']
+                    print(f"Mensagens encontradas via API: {len(messages)}")
+                else:
+                    print("Nenhuma mensagem encontrada via API")
+            else:
+                print(f"Erro na API Evolution: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            print(f"Erro ao buscar mensagens via API: {e}")
+    
+    # Processar mensagens para formato mais amigável
+    for msg in messages:
+        if msg.get('messageTimestamp'):
+            import datetime
+            try:
+                timestamp = int(msg['messageTimestamp']) / 1000
+                msg['formatted_time'] = datetime.datetime.fromtimestamp(timestamp).strftime('%d/%m/%Y %H:%M')
+            except:
+                msg['formatted_time'] = 'Data inválida'
+        else:
+            msg['formatted_time'] = 'Sem data'
+    
+    return messages
 
 def update_whatsapp_number_description(numero_id, new_description):
     """Atualiza a descrição de um número do WhatsApp"""
@@ -331,6 +366,30 @@ def login():
         else:
             return render_template('login.html', error='Credenciais inválidas')
     return render_template('login.html')
+
+@app.route('/numeros/reconectar/<instancia>')
+def reconectar_numero(instancia):
+    """Rota para reconectar um número desconectado"""
+    try:
+        # Reiniciar a instância na Evolution API
+        restart_url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/restart/{instancia}"
+        headers = get_evolution_api_headers()
+        
+        restart_response = requests.post(restart_url, headers=headers)
+        if restart_response.status_code == 201:
+            print(f"Instância {instancia} reiniciada com sucesso")
+            # Redirecionar para a página de criação com QR Code
+            return render_template('criar_numero.html', 
+                                 instancia=instancia, 
+                                 step=2,  # Pular para o step do QR Code
+                                 reconnect=True)  # Flag para indicar que é reconexão
+        else:
+            print(f"Erro ao reiniciar instância: {restart_response.text}")
+            return f"Erro ao reiniciar instância: {restart_response.text}", 400
+            
+    except Exception as e:
+        print(f"Erro ao reconectar: {e}")
+        return f"Erro ao reconectar: {str(e)}", 500
 
 @app.route('/numeros')
 def numeros():
