@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Mensagens - {{ contact_info.name or remote_jid }} - VIVO</title>
+    <style>
+        body {
+            background: #f0f2f5;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #075e54;
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            margin-left: 12px;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .contact-info {
+            color: #d9fdd3;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #e5ddd5;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23e5ddd5"/><path d="M20 20h60v60H20z" fill="none" stroke="%23d9d9d9" stroke-width="0.5"/></svg>');
+        }
+        .message {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-end;
+        }
+        .message.sent {
+            justify-content: flex-end;
+        }
+        .message.received {
+            justify-content: flex-start;
+        }
+        .message-content {
+            max-width: 65%;
+            padding: 8px 12px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .message.sent .message-content {
+            background: #dcf8c6;
+            color: #000;
+        }
+        .message.received .message-content {
+            background: white;
+            color: #000;
+        }
+        .message-text {
+            margin-bottom: 4px;
+        }
+        .message-time {
+            font-size: 0.7rem;
+            color: #667781;
+            text-align: right;
+            margin-top: 4px;
+        }
+        .message.received .message-time {
+            text-align: left;
+        }
+        .contact-name {
+            font-size: 0.75rem;
+            color: #667781;
+            margin-bottom: 2px;
+            font-weight: 600;
+        }
+        .empty-messages {
+            text-align: center;
+            color: #667781;
+            margin-top: 50px;
+        }
+        .empty-messages h3 {
+            margin-bottom: 10px;
+        }
+        .message-media {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 4px;
+        }
+        .loading {
+            text-align: center;
+            color: #667781;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/numeros" class="back-btn">←</a>
+        <div>
+            <h1>{{ contact_info.name or contact_info.pushName or remote_jid }}</h1>
+            <div class="contact-info">{{ remote_jid }}</div>
+        </div>
+    </div>
+
+    <div class="messages-container">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="message {% if message.fromMe %}sent{% else %}received{% endif %}">
+                <div class="message-content">
+                    {% if not message.fromMe and contact_info.name %}
+                        <div class="contact-name">{{ contact_info.name }}</div>
+                    {% endif %}
+                    
+                    {% if message.message and message.message.conversation %}
+                        <div class="message-text">{{ message.message.conversation }}</div>
+                    {% elif message.message and message.message.extendedTextMessage %}
+                        <div class="message-text">{{ message.message.extendedTextMessage.text }}</div>
+                    {% elif message.message and message.message.imageMessage %}
+                        <div class="message-text">📷 Imagem</div>
+                        {% if message.message.imageMessage.caption %}
+                            <div class="message-text">{{ message.message.imageMessage.caption }}</div>
+                        {% endif %}
+                    {% elif message.message and message.message.videoMessage %}
+                        <div class="message-text">🎥 Vídeo</div>
+                        {% if message.message.videoMessage.caption %}
+                            <div class="message-text">{{ message.message.videoMessage.caption }}</div>
+                        {% endif %}
+                    {% elif message.message and message.message.documentMessage %}
+                        <div class="message-text">📄 {{ message.message.documentMessage.fileName or 'Documento' }}</div>
+                    {% elif message.message and message.message.audioMessage %}
+                        <div class="message-text">🎵 Áudio</div>
+                    {% else %}
+                        <div class="message-text">💬 Mensagem</div>
+                    {% endif %}
+                    
+                    <div class="message-time">
+                        {{ message.formatted_time }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-messages">
+                <h3>📵 Nenhuma mensagem encontrada</h3>
+                <p>Esta conversa ainda não possui mensagens ou elas não foram sincronizadas.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Auto scroll para a última mensagem
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.messages-container');
+            container.scrollTop = container.scrollHeight;
+        });
+    </script>
+</body>
+</html>

@@ -13,8 +13,142 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 logado = False
 load_dotenv()
 
+# Funções Evolution API
+def get_evolution_api_headers():
+    """Retorna os headers para requisições à Evolution API"""
+    return {
+        'Content-Type': 'application/json',
+        'apikey': os.getenv('EVOLUTION_API_KEY', '')
+    }
+
+def create_evolution_instance(instance_name):
+    """Cria uma nova instância na Evolution API"""
+    try:
+        url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/create"
+        headers = get_evolution_api_headers()
+        
+        payload = {
+            "instanceName": instance_name,
+            "token": os.getenv('EVOLUTION_API_KEY', ''),
+            "qrcode": True,
+            "integration": "WHATSAPP-BAILEYS"
+        }
+        
+        response = requests.post(url, json=payload, headers=headers)
+        return response.status_code == 201
+    except Exception as e:
+        print(f"Erro ao criar instância Evolution: {e}")
+        return False
+
+def connect_evolution_instance(instance_name):
+    """Conecta uma instância na Evolution API"""
+    try:
+        url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/connect/{instance_name}"
+        headers = get_evolution_api_headers()
+        
+        response = requests.get(url, headers=headers)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Erro ao conectar instância Evolution: {e}")
+        return False
+
+def get_qrcode_evolution(instance_name):
+    """Busca o QR Code de uma instância na Evolution API"""
+    try:
+        url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/connect/{instance_name}"
+        headers = get_evolution_api_headers()
+        
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            # O QR Code pode vir em diferentes formatos dependendo da Evolution API
+            if 'qrcode' in data:
+                return data['qrcode']
+            elif 'base64' in data:
+                return data['base64']
+            elif 'qr' in data:
+                return data['qr']
+        return None
+    except Exception as e:
+        print(f"Erro ao buscar QR Code: {e}")
+        return None
+
+def get_instance_status(instance_name):
+    """Verifica o status de uma instância na Evolution API"""
+    try:
+        url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/fetchInstances"
+        headers = get_evolution_api_headers()
+        
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            instances = response.json()
+            for instance in instances:
+                if instance.get('instance', {}).get('instanceName') == instance_name:
+                    return instance.get('instance', {}).get('state', 'close')
+        return 'close'
+    except Exception as e:
+        print(f"Erro ao buscar status da instância: {e}")
+        return 'close'
+
+def get_messages_from_chat(instance_name, remote_jid, limit=50):
+    """Busca mensagens de um chat específico"""
+    connection = get_evolution_db_connection()
+    if not connection:
+        return []
+    
+    try:
+        cursor = connection.cursor(dictionary=True)
+        query = """
+        SELECT m.*, c.name as contact_name 
+        FROM Message m 
+        LEFT JOIN Contact c ON m.remoteJid = c.remoteJid AND m.instance = c.instance
+        WHERE m.instance = %s AND m.remoteJid = %s 
+        ORDER BY m.messageTimestamp DESC 
+        LIMIT %s
+        """
+        cursor.execute(query, (instance_name, remote_jid, limit))
+        messages = cursor.fetchall()
+        
+        # Processar mensagens para formato mais amigável
+        for msg in messages:
+            if msg['messageTimestamp']:
+                import datetime
+                msg['formatted_time'] = datetime.datetime.fromtimestamp(
+                    msg['messageTimestamp'] / 1000
+                ).strftime('%d/%m/%Y %H:%M')
+        
+        return messages
+    except Error as e:
+        print(f"Erro ao buscar mensagens: {e}")
+        return []
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+def update_whatsapp_number_description(numero_id, new_description):
+    """Atualiza a descrição de um número do WhatsApp"""
+    connection = get_db_connection()
+    if not connection:
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        query = "UPDATE whatsapp_numbers SET descricao = %s WHERE id = %s"
+        cursor.execute(query, (new_description, numero_id))
+        connection.commit()
+        return True
+    except Error as e:
+        print(f"Erro ao atualizar descrição: {e}")
+        return False
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
 # Configuração do banco de dados
 def get_db_connection():
+    """Conexão com o banco principal do sistema"""
     try:
         connection = mysql.connector.connect(
             host=os.getenv('DB_HOST', 'localhost'),
@@ -24,21 +158,85 @@ def get_db_connection():
         )
         return connection
     except Error as e:
-        print(f"Erro ao conectar ao MySQL: {e}")
+        print(f"Erro ao conectar ao MySQL (sistema): {e}")
+        return None
+
+def get_evolution_db_connection():
+    """Conexão com o banco da Evolution API"""
+    try:
+        connection = mysql.connector.connect(
+            host=os.getenv('EVOLUTION_DB_HOST', 'localhost'),
+            database=os.getenv('EVOLUTION_DB_NAME', 'evolution'),
+            user=os.getenv('EVOLUTION_DB_USER', 'root'),
+            password=os.getenv('EVOLUTION_DB_PASSWORD', '')
+        )
+        return connection
+    except Error as e:
+        print(f"Erro ao conectar ao MySQL (Evolution): {e}")
         return None
 
 def get_whatsapp_numbers():
-    """Busca todos os números do WhatsApp cadastrados"""
+    """Busca todos os números do WhatsApp cadastrados com status da Evolution"""
+    # Conectar ao banco principal
     connection = get_db_connection()
     if not connection:
         return []
     
+    # Conectar ao banco da Evolution
+    evolution_connection = get_evolution_db_connection()
+    
     try:
         cursor = connection.cursor(dictionary=True)
-        query = "SELECT numero, remotejid, descricao, instancia FROM numeros ORDER BY id"
+        # Buscar dados da tabela whatsapp_numbers do sistema principal
+        query = "SELECT * FROM whatsapp_numbers ORDER BY id"
         cursor.execute(query)
         numbers = cursor.fetchall()
+        
+        # Para cada número, verificar status na Evolution API
+        if evolution_connection:
+            evolution_cursor = evolution_connection.cursor(dictionary=True)
+            
+            for number in numbers:
+                try:
+                    # Buscar status da instância na Evolution
+                    query_evolution = "SELECT connectionStatus, ownerJid FROM Instance WHERE name = %s"
+                    evolution_cursor.execute(query_evolution, (number['instancia'],))
+                    instance_data = evolution_cursor.fetchone()
+                    
+                    if instance_data:
+                        status = instance_data['connectionStatus']
+                        if status == 'open':
+                            number['status'] = 'Conectado'
+                            number['status_class'] = 'connected'
+                        elif status == 'connecting':
+                            number['status'] = 'Conectando'
+                            number['status_class'] = 'connecting'
+                        else:
+                            number['status'] = 'Desconectado'
+                            number['status_class'] = 'disconnected'
+                        
+                        number['ownerJid'] = instance_data['ownerJid']
+                    else:
+                        number['status'] = 'Não encontrado'
+                        number['status_class'] = 'disconnected'
+                        number['ownerJid'] = None
+                        
+                except Error as e:
+                    print(f"Erro ao verificar status da instância {number['instancia']}: {e}")
+                    number['status'] = 'Erro'
+                    number['status_class'] = 'disconnected'
+                    number['ownerJid'] = None
+            
+            evolution_cursor.close()
+        else:
+            # Se não conseguir conectar com a Evolution, marcar todos como desconectado
+            for number in numbers:
+                number['status'] = 'Desconectado'
+                number['status_class'] = 'disconnected'
+                number['ownerJid'] = None
+        
         return numbers
+        
     except Error as e:
         print(f"Erro ao buscar números: {e}")
         return []
@@ -46,6 +244,8 @@ def get_whatsapp_numbers():
         if connection.is_connected():
             cursor.close()
             connection.close()
+        if evolution_connection and evolution_connection.is_connected():
+            evolution_connection.close()
 
 def create_whatsapp_number(numero, remotejid, descricao, instancia):
     """Cria um novo número do WhatsApp"""
@@ -55,7 +255,7 @@ def create_whatsapp_number(numero, remotejid, descricao, instancia):
     
     try:
         cursor = connection.cursor()
-        query = "INSERT INTO numeros (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
+        query = "INSERT INTO whatsapp_numbers (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
         cursor.execute(query, (numero, remotejid, descricao, instancia))
         connection.commit()
         return True
@@ -99,20 +299,125 @@ def criar_numero():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
-        numero = request.form.get('numero', '').strip()
-        remotejid = request.form.get('remotejid', '').strip()
-        descricao = request.form.get('descricao', '').strip()
-        instancia = request.form.get('instancia', '').strip()
+        # Se é uma requisição para criar a instância
+        if 'create_instance' in request.form:
+            instancia = request.form.get('instancia', '').strip()
+            if instancia:
+                # Criar instância na Evolution API
+                if create_evolution_instance(instancia):
+                    # Buscar QR Code
+                    qr_code = get_qrcode_evolution(instancia)
+                    return render_template('criar_numero.html', 
+                                         instancia=instancia, 
+                                         qr_code=qr_code,
+                                         show_qr=True)
+                else:
+                    return render_template('criar_numero.html', 
+                                         error='Erro ao criar instância na Evolution API')
         
-        if not all([numero, remotejid, descricao, instancia]):
-            return render_template('criar_numero.html', error='Todos os campos são obrigatórios')
-        
-        if create_whatsapp_number(numero, remotejid, descricao, instancia):
-            return redirect(url_for('numeros'))
-        else:
-            return render_template('criar_numero.html', error='Erro ao criar número')
+        # Se é uma requisição para salvar o número
+        elif 'save_number' in request.form:
+            numero = request.form.get('numero', '').strip()
+            remotejid = request.form.get('remotejid', '').strip()
+            descricao = request.form.get('descricao', '').strip()
+            instancia = request.form.get('instancia', '').strip()
+            
+            if not all([numero, remotejid, descricao, instancia]):
+                return render_template('criar_numero.html', error='Todos os campos são obrigatórios')
+            
+            # Verificar se a instância está conectada
+            status = get_instance_status(instancia)
+            if status != 'open':
+                qr_code = get_qrcode_evolution(instancia)
+                return render_template('criar_numero.html', 
+                                     instancia=instancia,
+                                     qr_code=qr_code,
+                                     show_qr=True,
+                                     error='WhatsApp ainda não está conectado. Escaneie o QR Code.')
+            
+            # Salvar o número no banco
+            if create_whatsapp_number(numero, remotejid, descricao, instancia):
+                return redirect(url_for('numeros'))
+            else:
+                return render_template('criar_numero.html', error='Erro ao criar número')
     
     return render_template('criar_numero.html')
+
+@app.route('/api/instance-status/<string:instance_name>')
+def check_instance_status(instance_name):
+    """API para verificar status da instância"""
+    if not logado:
+        return {'status': 'error', 'message': 'Não autorizado'}, 401
+    
+    status = get_instance_status(instance_name)
+    return {'status': status, 'connected': status == 'open'}
+
+@app.route('/numeros/editar/<int:numero_id>', methods=['GET', 'POST'])
+def editar_numero(numero_id):
+    """Edita a descrição de um número"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    connection = get_db_connection()
+    if not connection:
+        return redirect(url_for('numeros'))
+    
+    if request.method == 'POST':
+        nova_descricao = request.form.get('descricao', '').strip()
+        if nova_descricao:
+            if update_whatsapp_number_description(numero_id, nova_descricao):
+                return redirect(url_for('numeros'))
+    
+    # Buscar dados do número
+    try:
+        cursor = connection.cursor(dictionary=True)
+        query = "SELECT * FROM whatsapp_numbers WHERE id = %s"
+        cursor.execute(query, (numero_id,))
+        numero = cursor.fetchone()
+        
+        if not numero:
+            return redirect(url_for('numeros'))
+        
+        return render_template('editar_numero.html', numero=numero)
+    except Error as e:
+        print(f"Erro ao buscar número: {e}")
+        return redirect(url_for('numeros'))
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+@app.route('/mensagens/<string:instancia>/<string:remote_jid>')
+def visualizar_mensagens(instancia, remote_jid):
+    """Visualiza mensagens de uma conversa"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    messages = get_messages_from_chat(instancia, remote_jid)
+    
+    # Buscar informações do contato
+    connection = get_evolution_db_connection()
+    contact_info = {}
+    if connection:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT name, pushName FROM Contact WHERE remoteJid = %s AND instance = %s LIMIT 1"
+            cursor.execute(query, (remote_jid, instancia))
+            result = cursor.fetchone()
+            if result:
+                contact_info = result
+        except Error as e:
+            print(f"Erro ao buscar contato: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+    
+    return render_template('mensagens.html', 
+                         messages=messages, 
+                         contact_info=contact_info,
+                         remote_jid=remote_jid,
+                         instancia=instancia)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():# Verifica se o usuário está autenticado
@@ -206,4 +511,4 @@ def index():# Verifica se o usuário está autenticado
     return render_template('index.html', success=False, numbers=numbers)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)

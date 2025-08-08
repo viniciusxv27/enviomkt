@@ -107,6 +107,58 @@
             color: #495057;
             margin-top: 4px;
         }
+        .qr-container {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+        }
+        .qr-code {
+            max-width: 256px;
+            width: 100%;
+            height: auto;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .qr-status {
+            margin-top: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .status-connected {
+            color: #28a745;
+        }
+        .status-waiting {
+            color: #ffc107;
+        }
+        .status-error {
+            color: #dc3545;
+        }
+        .step-indicator {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .step-indicator h3 {
+            margin: 0 0 8px 0;
+            color: #1976d2;
+            font-size: 1.1rem;
+        }
+        .step-indicator p {
+            margin: 0;
+            color: #424242;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -119,7 +171,58 @@
             </div>
         {% endif %}
 
-        <form method="POST">
+        {% if not show_qr %}
+        <!-- Passo 1: Criar Instância -->
+        <div class="step-indicator">
+            <h3>📱 Passo 1: Criar Instância WhatsApp</h3>
+            <p>Primeiro, vamos criar uma nova instância na Evolution API</p>
+        </div>
+
+        <form method="POST" id="instanceForm">
+            <input type="hidden" name="create_instance" value="1">
+            <div class="form-group">
+                <label for="instancia">🖥️ Nome da Instância:</label>
+                <input type="text" id="instancia" name="instancia" required placeholder="Ex: vendas_centro_01">
+                <div class="help-text">Nome único para identificar esta instância</div>
+                <div class="example">vendas_centro_01, atendimento_norte_02</div>
+            </div>
+            <button type="submit" class="btn">🚀 Criar Instância</button>
+        </form>
+
+        {% else %}
+        <!-- Passo 2: Escanear QR Code -->
+        <div class="step-indicator">
+            <h3>📷 Passo 2: Conectar WhatsApp</h3>
+            <p>Escaneie o QR Code abaixo com o WhatsApp do seu celular</p>
+        </div>
+
+        {% if qr_code %}
+        <div class="qr-container">
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code WhatsApp" class="qr-code">
+            <div class="qr-status status-waiting" id="connectionStatus">
+                🔄 Aguardando conexão...
+            </div>
+            <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
+                Abra o WhatsApp → Menu (⋮) → WhatsApp Web → Escanear código
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Passo 3: Cadastrar Número -->
+        <div class="step-indicator">
+            <h3>📝 Passo 3: Cadastrar Número</h3>
+            <p>Preencha os dados do número após conectar o WhatsApp</p>
+        </div>
+
+        <form method="POST" id="numberForm">
+            <input type="hidden" name="save_number" value="1">
+            <input type="hidden" name="instancia" value="{{ instancia }}">
+
+            <div class="form-group">
+                <label>🖥️ Instância:</label>
+                <input type="text" value="{{ instancia }}" readonly>
+            </div>
+
             <div class="form-group">
                 <label for="numero">📱 Número do WhatsApp:</label>
                 <input type="text" id="numero" name="numero" required placeholder="Ex: +5511999999999">
@@ -139,16 +242,44 @@
                 <div class="help-text">Nome amigável para identificar este número</div>
             </div>
 
-            <div class="form-group">
-                <label for="instancia">🖥️ Instância:</label>
-                <input type="text" id="instancia" name="instancia" required placeholder="Ex: instance_01">
-                <div class="help-text">Nome da instância do WhatsApp</div>
-            </div>
-
-            <button type="submit" class="btn">💾 Salvar Número</button>
+            <button type="submit" class="btn" id="saveButton" disabled>💾 Salvar Número</button>
         </form>
+        {% endif %}
 
         <a href="/numeros" class="btn-secondary">← Voltar para Lista</a>
     </div>
+
+    {% if show_qr %}
+    <script>
+        // Verificar status da conexão a cada 3 segundos
+        function checkConnectionStatus() {
+            fetch('/api/instance-status/{{ instancia }}')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('connectionStatus');
+                    const saveButton = document.getElementById('saveButton');
+                    
+                    if (data.connected) {
+                        statusDiv.className = 'qr-status status-connected';
+                        statusDiv.innerHTML = '✅ WhatsApp Conectado!';
+                        saveButton.disabled = false;
+                    } else if (data.status === 'connecting') {
+                        statusDiv.className = 'qr-status status-waiting';
+                        statusDiv.innerHTML = '🔄 Conectando...';
+                    } else {
+                        statusDiv.className = 'qr-status status-waiting';
+                        statusDiv.innerHTML = '🔄 Aguardando conexão...';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar status:', error);
+                });
+        }
+
+        // Verificar status inicial e depois a cada 3 segundos
+        checkConnectionStatus();
+        setInterval(checkConnectionStatus, 3000);
+    </script>
+    {% endif %}
 </body>
 </html>

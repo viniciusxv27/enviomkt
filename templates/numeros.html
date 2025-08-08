@@ -85,6 +85,51 @@
             margin-bottom: 10px;
             color: #2c3e50;
         }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            text-decoration: none;
+            margin: 0 2px;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        .btn-edit {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-edit:hover {
+            background-color: #0056b3;
+        }
+        .btn-messages {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-messages:hover {
+            background-color: #1e7e34;
+        }
+        .actions-cell {
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -103,8 +148,9 @@
                 <tr>
                     <th>Número</th>
                     <th>Descrição</th>
-                    <th>Remote JID</th>
+                    <th>Status</th>
                     <th>Instância</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -112,8 +158,20 @@
                 <tr>
                     <td><strong>{{ number.numero }}</strong></td>
                     <td>{{ number.descricao }}</td>
-                    <td><code style="background: #f1f1f1; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">{{ number.remotejid }}</code></td>
+                    <td>
+                        <span class="status-badge {{ number.status_class }}">
+                            {{ number.status }}
+                        </span>
+                    </td>
                     <td>{{ number.instancia }}</td>
+                    <td class="actions-cell">
+                        <a href="/numeros/editar/{{ number.id }}" class="btn-sm btn-edit">
+                            ✏️ Editar
+                        </a>
+                        <a href="/mensagens/{{ number.instancia }}/{{ number.remotejid }}" class="btn-sm btn-messages">
+                            💬 Mensagens
+                        </a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
