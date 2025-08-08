@@ -55,19 +55,52 @@ def connect_evolution_instance(instance_name):
 def get_qrcode_evolution(instance_name):
     """Busca o QR Code de uma instância na Evolution API"""
     try:
+        # Primeiro tenta o endpoint de conexão
         url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/connect/{instance_name}"
         headers = get_evolution_api_headers()
         
+        print(f"Buscando QR Code para instância: {instance_name}")
+        print(f"URL: {url}")
+        print(f"Headers: {headers}")
+        
         response = requests.get(url, headers=headers)
+        print(f"Response status: {response.status_code}")
+        print(f"Response text: {response.text}")
+        
         if response.status_code == 200:
             data = response.json()
+            print(f"Response data: {data}")
+            
             # O QR Code pode vir em diferentes formatos dependendo da Evolution API
             if 'qrcode' in data:
-                return data['qrcode']
+                qr_data = data['qrcode']
+                print(f"QR Code encontrado no campo 'qrcode'")
+                return qr_data.replace('data:image/png;base64,', '') if qr_data.startswith('data:') else qr_data
             elif 'base64' in data:
-                return data['base64']
+                qr_data = data['base64']
+                print(f"QR Code encontrado no campo 'base64'")
+                return qr_data.replace('data:image/png;base64,', '') if qr_data.startswith('data:') else qr_data
             elif 'qr' in data:
-                return data['qr']
+                qr_data = data['qr']
+                print(f"QR Code encontrado no campo 'qr'")
+                return qr_data.replace('data:image/png;base64,', '') if qr_data.startswith('data:') else qr_data
+            else:
+                print(f"Campos disponíveis na resposta: {list(data.keys())}")
+        else:
+            print(f"Erro na requisição: {response.status_code} - {response.text}")
+        
+        # Se não conseguir pelo endpoint de connect, tenta buscar instância específica
+        url2 = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/{instance_name}"
+        response2 = requests.get(url2, headers=headers)
+        print(f"Tentando URL alternativa: {url2}")
+        print(f"Response status 2: {response2.status_code}")
+        
+        if response2.status_code == 200:
+            data2 = response2.json()
+            print(f"Response data 2: {data2}")
+            if 'qrcode' in data2:
+                return data2['qrcode'].replace('data:image/png;base64,', '') if data2['qrcode'].startswith('data:') else data2['qrcode']
+        
         return None
     except Exception as e:
         print(f"Erro ao buscar QR Code: {e}")
@@ -350,7 +383,34 @@ def check_instance_status(instance_name):
         return {'status': 'error', 'message': 'Não autorizado'}, 401
     
     status = get_instance_status(instance_name)
-    return {'status': status, 'connected': status == 'open'}
+    qr_code = None
+    
+    # Se não está conectado, tentar buscar QR Code
+    if status != 'open':
+        qr_code = get_qrcode_evolution(instance_name)
+    
+    return {
+        'status': status, 
+        'connected': status == 'open',
+        'qr_code': qr_code
+    }
+
+@app.route('/debug/qr/<string:instance_name>')
+def debug_qr(instance_name):
+    """Debug para QR Code"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    qr_code = get_qrcode_evolution(instance_name)
+    status = get_instance_status(instance_name)
+    
+    return {
+        'instance': instance_name,
+        'qr_code': qr_code,
+        'status': status,
+        'has_qr': qr_code is not None,
+        'qr_length': len(qr_code) if qr_code else 0
+    }
 
 @app.route('/numeros/editar/<int:numero_id>', methods=['GET', 'POST'])
 def editar_numero(numero_id):

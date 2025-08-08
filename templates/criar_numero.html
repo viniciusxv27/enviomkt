@@ -198,13 +198,28 @@
 
         {% if qr_code %}
         <div class="qr-container">
-            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code WhatsApp" class="qr-code">
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code WhatsApp" class="qr-code" onerror="this.style.display='none'; document.getElementById('qr-error').style.display='block';">
+            <div id="qr-error" style="display: none; color: #dc3545; margin-top: 10px;">
+                ❌ Erro ao carregar QR Code. Tentando novamente...
+            </div>
             <div class="qr-status status-waiting" id="connectionStatus">
                 🔄 Aguardando conexão...
             </div>
             <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
                 Abra o WhatsApp → Menu (⋮) → WhatsApp Web → Escanear código
             </p>
+        </div>
+        {% else %}
+        <div class="qr-container">
+            <div style="color: #dc3545; font-size: 1.2rem; margin: 20px 0;">
+                ❌ QR Code não disponível
+            </div>
+            <div style="color: #666; font-size: 0.9rem;">
+                Verificando conexão com Evolution API...
+            </div>
+            <button type="button" onclick="window.location.reload()" class="btn" style="margin-top: 15px;">
+                🔄 Tentar Novamente
+            </button>
         </div>
         {% endif %}
 
@@ -258,6 +273,9 @@
                 .then(data => {
                     const statusDiv = document.getElementById('connectionStatus');
                     const saveButton = document.getElementById('saveButton');
+                    const qrImage = document.querySelector('.qr-code');
+                    
+                    console.log('Status response:', data);
                     
                     if (data.connected) {
                         statusDiv.className = 'qr-status status-connected';
@@ -269,16 +287,31 @@
                     } else {
                         statusDiv.className = 'qr-status status-waiting';
                         statusDiv.innerHTML = '🔄 Aguardando conexão...';
+                        
+                        // Atualizar QR Code se disponível
+                        if (data.qr_code && qrImage) {
+                            qrImage.src = 'data:image/png;base64,' + data.qr_code;
+                            qrImage.style.display = 'block';
+                            document.getElementById('qr-error').style.display = 'none';
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('Erro ao verificar status:', error);
+                    const statusDiv = document.getElementById('connectionStatus');
+                    statusDiv.className = 'qr-status status-error';
+                    statusDiv.innerHTML = '❌ Erro de conexão com API';
                 });
         }
 
         // Verificar status inicial e depois a cada 3 segundos
         checkConnectionStatus();
-        setInterval(checkConnectionStatus, 3000);
+        const statusInterval = setInterval(checkConnectionStatus, 3000);
+        
+        // Para o intervalo quando sair da página
+        window.addEventListener('beforeunload', function() {
+            clearInterval(statusInterval);
+        });
     </script>
     {% endif %}
 </body>
