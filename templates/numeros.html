@@ -193,15 +193,9 @@
                             <a href="/numeros/editar/{{ number.id }}" class="btn-sm btn-edit">
                                 ✏️ Editar
                             </a>
-                            {% if number.remoteJid %}
-                            <a href="/mensagens/{{ number.instancia }}/{{ number.remoteJid|replace('@', '%40')|replace(':', '%3A') }}" class="btn-sm btn-messages">
-                                💬 Ver
+                            <a href="/chats/{{ number.instancia }}" class="btn-sm btn-messages">
+                                💬 Ver Chats
                             </a>
-                            {% else %}
-                            <span class="btn-sm" style="background-color: #6c757d; color: white; cursor: not-allowed;">
-                                💬 Sem Chat
-                            </span>
-                            {% endif %}
                             {% if number.status_class == 'disconnected' %}
                             <a href="/numeros/reconectar/{{ number.instancia }}" class="btn-sm btn-reconnect">
                                 🔄 Reconectar

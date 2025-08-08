@@ -164,6 +164,107 @@ def get_instance_status(instance_name):
         print(f"Erro ao buscar status da instância: {e}")
         return 'close'
 
+def get_contacts_from_instance(instance_name):
+    """Busca todos os contatos de uma instância específica"""
+    # Tentar buscar do banco de dados da Evolution
+    connection = get_evolution_db_connection()
+    contacts = []
+    
+    if connection:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            query = """
+            SELECT DISTINCT 
+                c.remoteJid,
+                c.name,
+                c.pushName,
+                c.profilePicUrl,
+                (SELECT COUNT(*) FROM Message m WHERE m.remoteJid = c.remoteJid AND m.instance = c.instance) as message_count,
+                (SELECT m2.messageTimestamp FROM Message m2 WHERE m2.remoteJid = c.remoteJid AND m2.instance = c.instance ORDER BY m2.messageTimestamp DESC LIMIT 1) as last_message_time,
+                (SELECT m3.message FROM Message m3 WHERE m3.remoteJid = c.remoteJid AND m3.instance = c.instance ORDER BY m3.messageTimestamp DESC LIMIT 1) as last_message
+            FROM Contact c
+            WHERE c.instance = %s 
+            AND c.remoteJid NOT LIKE '%%@g.us'
+            AND c.remoteJid NOT LIKE 'status@%%'
+            ORDER BY last_message_time DESC
+            """
+            cursor.execute(query, (instance_name,))
+            contacts = cursor.fetchall()
+            
+            print(f"Contatos encontrados no banco: {len(contacts)}")
+            
+            # Processar dados dos contatos
+            for contact in contacts:
+                # Formatar timestamp da última mensagem
+                if contact['last_message_time']:
+                    import datetime
+                    try:
+                        timestamp = int(contact['last_message_time']) / 1000
+                        contact['formatted_last_time'] = datetime.datetime.fromtimestamp(timestamp).strftime('%d/%m %H:%M')
+                    except:
+                        contact['formatted_last_time'] = ''
+                else:
+                    contact['formatted_last_time'] = ''
+                
+                # Processar última mensagem para exibir texto
+                if contact['last_message']:
+                    try:
+                        import json
+                        msg_data = json.loads(contact['last_message'])
+                        if 'conversation' in msg_data:
+                            contact['last_message_text'] = msg_data['conversation'][:50] + ('...' if len(msg_data['conversation']) > 50 else '')
+                        elif 'extendedTextMessage' in msg_data and 'text' in msg_data['extendedTextMessage']:
+                            text = msg_data['extendedTextMessage']['text']
+                            contact['last_message_text'] = text[:50] + ('...' if len(text) > 50 else '')
+                        elif 'imageMessage' in msg_data:
+                            contact['last_message_text'] = '📷 Imagem'
+                        elif 'videoMessage' in msg_data:
+                            contact['last_message_text'] = '🎥 Vídeo'
+                        elif 'documentMessage' in msg_data:
+                            contact['last_message_text'] = '📄 Documento'
+                        elif 'audioMessage' in msg_data:
+                            contact['last_message_text'] = '🎵 Áudio'
+                        else:
+                            contact['last_message_text'] = 'Mensagem'
+                    except:
+                        contact['last_message_text'] = 'Mensagem'
+                else:
+                    contact['last_message_text'] = 'Sem mensagens'
+                
+                # Nome do contato para exibição
+                contact['display_name'] = contact['name'] or contact['pushName'] or contact['remoteJid'].split('@')[0]
+                
+        except Error as e:
+            print(f"Erro ao buscar contatos: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+    
+    # Se não encontrou contatos no banco, tentar buscar via API
+    if not contacts:
+        try:
+            print("Tentando buscar contatos via API Evolution...")
+            url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/chat/findChats/{instance_name}"
+            headers = get_evolution_api_headers()
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                api_data = response.json()
+                if api_data and isinstance(api_data, list):
+                    contacts = api_data
+                    print(f"Contatos encontrados via API: {len(contacts)}")
+                else:
+                    print("Nenhum contato encontrado via API")
+            else:
+                print(f"Erro na API Evolution: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            print(f"Erro ao buscar contatos via API: {e}")
+    
+    return contacts
+
 def get_messages_from_chat(instance_name, remote_jid, limit=50):
     """Busca mensagens de um chat específico da Evolution API"""
     # Primeiro tenta buscar do banco de dados da Evolution
@@ -559,6 +660,19 @@ def editar_numero(numero_id):
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+@app.route('/chats/<string:instancia>')
+def visualizar_chats(instancia):
+    """Visualiza todos os chats de uma instância"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    # Buscar todos os contatos/chats da instância
+    contacts = get_contacts_from_instance(instancia)
+    
+    return render_template('chats.html', 
+                         contacts=contacts,
+                         instancia=instancia)
 
 @app.route('/mensagens/<string:instancia>/<string:remote_jid>')
 def visualizar_mensagens(instancia, remote_jid):
