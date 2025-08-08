@@ -310,6 +310,7 @@
         let isConnected = false;
         let statusCheckCount = 0;
         const maxStatusChecks = 100; // Máximo 5 minutos (100 * 3 segundos)
+        const isReconnect = {{ 'true' if reconnect else 'false' }};
         
         // Verificar status da conexão a cada 3 segundos
         function checkConnectionStatus() {

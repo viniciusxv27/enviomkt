@@ -371,25 +371,48 @@ def login():
 def reconectar_numero(instancia):
     """Rota para reconectar um número desconectado"""
     try:
-        # Reiniciar a instância na Evolution API
-        restart_url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/restart/{instancia}"
+        # Tentar conectar a instância na Evolution API
+        connect_url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/connect/{instancia}"
         headers = get_evolution_api_headers()
         
-        restart_response = requests.post(restart_url, headers=headers)
-        if restart_response.status_code == 201:
-            print(f"Instância {instancia} reiniciada com sucesso")
-            # Redirecionar para a página de criação com QR Code
+        print(f"Tentando reconectar instância: {instancia}")
+        print(f"URL: {connect_url}")
+        
+        # Primeiro tentar conectar
+        connect_response = requests.get(connect_url, headers=headers, timeout=10)
+        print(f"Response status: {connect_response.status_code}")
+        print(f"Response text: {connect_response.text}")
+        
+        if connect_response.status_code in [200, 201]:
+            print(f"Instância {instancia} conectada/reconectada com sucesso")
+            
+            # Aguardar um pouco e obter QR Code
+            time.sleep(2)
+            qr_code = get_qrcode_evolution(instancia)
+            
             return render_template('criar_numero.html', 
                                  instancia=instancia, 
-                                 step=2,  # Pular para o step do QR Code
-                                 reconnect=True)  # Flag para indicar que é reconexão
+                                 show_qr=True,
+                                 qr_code=qr_code,
+                                 reconnect=True)
         else:
-            print(f"Erro ao reiniciar instância: {restart_response.text}")
-            return f"Erro ao reiniciar instância: {restart_response.text}", 400
+            error_msg = f"Erro ao reconectar: Status {connect_response.status_code}"
+            try:
+                error_data = connect_response.json()
+                if 'message' in error_data:
+                    error_msg = error_data['message']
+            except:
+                pass
+            
+            return render_template('numeros.html', 
+                                 numbers=get_whatsapp_numbers(),
+                                 error=error_msg)
             
     except Exception as e:
         print(f"Erro ao reconectar: {e}")
-        return f"Erro ao reconectar: {str(e)}", 500
+        return render_template('numeros.html', 
+                             numbers=get_whatsapp_numbers(),
+                             error=f"Erro ao reconectar: {str(e)}")
 
 @app.route('/numeros')
 def numeros():
