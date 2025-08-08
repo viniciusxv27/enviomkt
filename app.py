@@ -165,155 +165,154 @@ def get_instance_status(instance_name):
         return 'close'
 
 def get_contacts_from_instance(instance_name):
-    """Busca todos os contatos de uma instância específica"""
-    print(f"=== INICIANDO BUSCA DE CONTATOS PARA: {instance_name} ===")
+    """Busca todos os contatos/chats de uma instância"""
+    print(f"Buscando contatos para instância: {instance_name}")
     
-    # Tentar buscar do banco de dados da Evolution
+    # Primeiro tenta buscar do banco de dados da Evolution
     connection = get_evolution_db_connection()
     contacts = []
-    
-    print(f"Conexão com banco Evolution: {'OK' if connection else 'FALHOU'}")
     
     if connection:
         try:
             cursor = connection.cursor(dictionary=True)
+            # Buscar contatos da tabela Contact
+            query = """
+            SELECT DISTINCT 
+                c.remoteJid,
+                c.name,
+                c.pushName,
+                c.profilePictureUrl,
+                c.instance,
+                (SELECT COUNT(*) FROM Message m WHERE m.remoteJid = c.remoteJid AND m.instance = c.instance) as message_count,
+                (SELECT m.messageTimestamp FROM Message m WHERE m.remoteJid = c.remoteJid AND m.instance = c.instance ORDER BY m.messageTimestamp DESC LIMIT 1) as last_message_time
+            FROM Contact c 
+            WHERE c.instance = %s 
+            AND c.remoteJid IS NOT NULL
+            AND c.remoteJid != ''
+            AND c.remoteJid NOT LIKE '%@g.us'
+            ORDER BY last_message_time DESC, c.name ASC
+            """
+            cursor.execute(query, (instance_name,))
+            contacts = cursor.fetchall()
+            print(f"Contatos encontrados no banco Evolution: {len(contacts)}")
             
-            # Primeiro, verificar se há tabela Contact
-            cursor.execute("SHOW TABLES LIKE 'Contact'")
-            contact_table = cursor.fetchone()
-            print(f"Tabela Contact existe: {'SIM' if contact_table else 'NÃO'}")
-            
-            if contact_table:
-                # Verificar quantos contatos existem para essa instância
-                cursor.execute("SELECT COUNT(*) as total FROM Contact WHERE instance = %s", (instance_name,))
-                total_contacts = cursor.fetchone()
-                print(f"Total de contatos na instância {instance_name}: {total_contacts['total'] if total_contacts else 0}")
-                
-                # Buscar contatos sem filtros primeiro
-                simple_query = "SELECT * FROM Contact WHERE instance = %s LIMIT 10"
-                cursor.execute(simple_query, (instance_name,))
-                sample_contacts = cursor.fetchall()
-                print(f"Amostra de contatos (primeiros 10): {len(sample_contacts)}")
-                for contact in sample_contacts:
-                    print(f"  - {contact.get('remoteJid', 'N/A')} | {contact.get('name', 'N/A')} | {contact.get('pushName', 'N/A')}")
-            
-            # Verificar se há tabela Message
-            cursor.execute("SHOW TABLES LIKE 'Message'")
-            message_table = cursor.fetchone()
-            print(f"Tabela Message existe: {'SIM' if message_table else 'NÃO'}")
-            
-            if message_table:
-                # Verificar quantas mensagens existem para essa instância
-                cursor.execute("SELECT COUNT(*) as total FROM Message WHERE instance = %s", (instance_name,))
-                total_messages = cursor.fetchone()
-                print(f"Total de mensagens na instância {instance_name}: {total_messages['total'] if total_messages else 0}")
-                
-                # Buscar contatos únicos das mensagens
-                cursor.execute("SELECT DISTINCT remoteJid FROM Message WHERE instance = %s AND remoteJid NOT LIKE '%@g.us' LIMIT 10", (instance_name,))
-                message_contacts = cursor.fetchall()
-                print(f"Contatos únicos com mensagens (amostra): {len(message_contacts)}")
-                for contact in message_contacts:
-                    print(f"  - {contact.get('remoteJid', 'N/A')}")
-            
-            # Agora a query principal
-            if contact_table and message_table:
-                query = """
-                SELECT DISTINCT 
-                    c.remoteJid,
-                    c.name,
-                    c.pushName,
-                    c.profilePicUrl,
-                    (SELECT COUNT(*) FROM Message m WHERE m.remoteJid = c.remoteJid AND m.instance = c.instance) as message_count,
-                    (SELECT m2.messageTimestamp FROM Message m2 WHERE m2.remoteJid = c.remoteJid AND m2.instance = c.instance ORDER BY m2.messageTimestamp DESC LIMIT 1) as last_message_time,
-                    (SELECT m3.message FROM Message m3 WHERE m3.remoteJid = c.remoteJid AND m3.instance = c.instance ORDER BY m3.messageTimestamp DESC LIMIT 1) as last_message
-                FROM Contact c
-                WHERE c.instance = %s 
-                AND c.remoteJid NOT LIKE '%%@g.us'
-                AND c.remoteJid NOT LIKE 'status@%%'
-                ORDER BY last_message_time DESC
-                """
-                cursor.execute(query, (instance_name,))
-                contacts = cursor.fetchall()
-                print(f"Contatos encontrados com query principal: {len(contacts)}")
-            
-            elif message_table:
-                # Se não há tabela Contact, buscar apenas pelas mensagens
-                print("Usando apenas tabela Message para buscar contatos...")
-                query = """
-                SELECT DISTINCT 
-                    remoteJid,
-                    NULL as name,
-                    NULL as pushName,
-                    NULL as profilePicUrl,
-                    COUNT(*) as message_count,
-                    MAX(messageTimestamp) as last_message_time,
-                    (SELECT message FROM Message m WHERE m.remoteJid = Message.remoteJid AND m.instance = Message.instance ORDER BY messageTimestamp DESC LIMIT 1) as last_message
-                FROM Message
-                WHERE instance = %s 
-                AND remoteJid NOT LIKE '%%@g.us'
-                AND remoteJid NOT LIKE 'status@%%'
-                GROUP BY remoteJid
-                ORDER BY last_message_time DESC
-                """
-                cursor.execute(query, (instance_name,))
-                contacts = cursor.fetchall()
-                print(f"Contatos encontrados apenas com mensagens: {len(contacts)}")
-            
-            # Processar dados dos contatos
-            for contact in contacts:
-                # Formatar timestamp da última mensagem
-                if contact.get('last_message_time'):
-                    import datetime
-                    try:
-                        timestamp = int(contact['last_message_time']) / 1000
-                        contact['formatted_last_time'] = datetime.datetime.fromtimestamp(timestamp).strftime('%d/%m %H:%M')
-                    except:
-                        contact['formatted_last_time'] = ''
-                else:
-                    contact['formatted_last_time'] = ''
-                
-                # Processar última mensagem para exibir texto
-                if contact.get('last_message'):
-                    try:
-                        import json
-                        msg_data = json.loads(contact['last_message'])
-                        if 'conversation' in msg_data:
-                            contact['last_message_text'] = msg_data['conversation'][:50] + ('...' if len(msg_data['conversation']) > 50 else '')
-                        elif 'extendedTextMessage' in msg_data and 'text' in msg_data['extendedTextMessage']:
-                            text = msg_data['extendedTextMessage']['text']
-                            contact['last_message_text'] = text[:50] + ('...' if len(text) > 50 else '')
-                        elif 'imageMessage' in msg_data:
-                            contact['last_message_text'] = '📷 Imagem'
-                        elif 'videoMessage' in msg_data:
-                            contact['last_message_text'] = '🎥 Vídeo'
-                        elif 'documentMessage' in msg_data:
-                            contact['last_message_text'] = '📄 Documento'
-                        elif 'audioMessage' in msg_data:
-                            contact['last_message_text'] = '🎵 Áudio'
-                        else:
-                            contact['last_message_text'] = 'Mensagem'
-                    except Exception as e:
-                        print(f"Erro ao processar mensagem: {e}")
-                        contact['last_message_text'] = 'Mensagem'
-                else:
-                    contact['last_message_text'] = 'Sem mensagens'
-                
-                # Nome do contato para exibição
-                remote_jid = contact.get('remoteJid', '')
-                if remote_jid and '@' in remote_jid:
-                    number = remote_jid.split('@')[0]
-                    contact['display_name'] = contact.get('name') or contact.get('pushName') or f"+{number}"
-                else:
-                    contact['display_name'] = contact.get('name') or contact.get('pushName') or 'Contato sem nome'
-                
         except Error as e:
-            print(f"ERRO SQL ao buscar contatos: {e}")
+            print(f"Erro ao buscar contatos do banco Evolution: {e}")
         finally:
             if connection.is_connected():
                 cursor.close()
                 connection.close()
     
-    print(f"=== RESULTADO FINAL: {len(contacts)} contatos encontrados ===")
+    # Se não encontrou contatos no banco, tentar via API da Evolution
+    if not contacts:
+        try:
+            print("Tentando buscar contatos via API Evolution...")
+            # Usar endpoint correto para buscar contatos
+            url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/chat/whatsappNumbers/{instance_name}"
+            headers = get_evolution_api_headers()
+            
+            print(f"URL da API: {url}")
+            response = requests.get(url, headers=headers, timeout=15)
+            print(f"Response status: {response.status_code}")
+            print(f"Response text: {response.text[:500]}...")
+            
+            if response.status_code == 200:
+                api_data = response.json()
+                print(f"Response data: {api_data}")
+                
+                # A resposta pode ter diferentes estruturas dependendo da versão da Evolution API
+                if isinstance(api_data, list):
+                    for contact in api_data:
+                        if contact.get('id') and '@' in contact.get('id', ''):
+                            contacts.append({
+                                'remoteJid': contact['id'],
+                                'name': contact.get('name', ''),
+                                'pushName': contact.get('pushname', ''),
+                                'profilePictureUrl': contact.get('profilePictureUrl', ''),
+                                'instance': instance_name,
+                                'message_count': 0,
+                                'last_message_time': None
+                            })
+                elif isinstance(api_data, dict) and 'data' in api_data:
+                    for contact in api_data['data']:
+                        if contact.get('id') and '@' in contact.get('id', ''):
+                            contacts.append({
+                                'remoteJid': contact['id'],
+                                'name': contact.get('name', ''),
+                                'pushName': contact.get('pushname', ''),
+                                'profilePictureUrl': contact.get('profilePictureUrl', ''),
+                                'instance': instance_name,
+                                'message_count': 0,
+                                'last_message_time': None
+                            })
+                
+                print(f"Contatos encontrados via API: {len(contacts)}")
+            else:
+                print(f"Erro na API Evolution: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            print(f"Erro ao buscar contatos via API: {e}")
+    
+    # Se ainda não tem contatos, tentar uma abordagem alternativa via mensagens
+    if not contacts:
+        print("Tentando buscar contatos através das mensagens...")
+        connection = get_evolution_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor(dictionary=True)
+                # Buscar remetentes únicos das mensagens
+                query = """
+                SELECT DISTINCT 
+                    m.remoteJid,
+                    c.name,
+                    c.pushName,
+                    COUNT(m.id) as message_count,
+                    MAX(m.messageTimestamp) as last_message_time
+                FROM Message m 
+                LEFT JOIN Contact c ON m.remoteJid = c.remoteJid AND m.instance = c.instance
+                WHERE m.instance = %s 
+                AND m.remoteJid IS NOT NULL
+                AND m.remoteJid != ''
+                AND m.remoteJid NOT LIKE '%@g.us'
+                GROUP BY m.remoteJid, c.name, c.pushName
+                ORDER BY last_message_time DESC
+                LIMIT 50
+                """
+                cursor.execute(query, (instance_name,))
+                contacts = cursor.fetchall()
+                print(f"Contatos encontrados através das mensagens: {len(contacts)}")
+                
+            except Error as e:
+                print(f"Erro ao buscar contatos através das mensagens: {e}")
+            finally:
+                if connection.is_connected():
+                    cursor.close()
+                    connection.close()
+    
+    # Processar contatos para formato mais amigável
+    for contact in contacts:
+        if contact.get('last_message_time'):
+            import datetime
+            try:
+                timestamp = int(contact['last_message_time']) / 1000
+                contact['formatted_time'] = datetime.datetime.fromtimestamp(timestamp).strftime('%d/%m/%Y %H:%M')
+            except:
+                contact['formatted_time'] = 'Data inválida'
+        else:
+            contact['formatted_time'] = 'Sem mensagens'
+            
+        # Garantir que name não seja None
+        if not contact.get('name') and contact.get('pushName'):
+            contact['name'] = contact['pushName']
+        elif not contact.get('name') and not contact.get('pushName'):
+            # Extrair número do remoteJid
+            jid = contact.get('remoteJid', '')
+            if '@' in jid:
+                contact['name'] = jid.split('@')[0]
+            else:
+                contact['name'] = jid
+    
+    print(f"Total de contatos processados: {len(contacts)}")
     return contacts
 
 def get_messages_from_chat(instance_name, remote_jid, limit=50):
