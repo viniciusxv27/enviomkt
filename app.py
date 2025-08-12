@@ -170,8 +170,9 @@ def get_contacts_from_instance(instance_name):
     base_url = os.getenv('EVOLUTION_BASE_URL', '')
     headers = get_evolution_api_headers()
     try:
-        url = f"{base_url}/chat/findChats/{instance_name}"
-        response = requests.post(url, headers=headers, timeout=15)
+        url = f"{base_url}/chat/fetchChats/{instance_name}"
+        payload = {"where": {"archived": False}, "limit": 100}
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
         if response.status_code == 200:
             data = response.json()
             chats = data if isinstance(data, list) else data.get('data', [])
