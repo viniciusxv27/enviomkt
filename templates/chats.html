@@ -213,7 +213,7 @@
             <div class="contacts-list" id="contactsList">
                 {% if contacts %}
                     {% for contact in contacts %}
-                    <div class="contact-item" onclick="openChat('{{ contact.remoteJid }}', '{{ contact.display_name }}')">
+                    <div class="contact-item" onclick="openChat('{{ contact.remoteJid }}', '{{ contact.pushName }}')">
                         <div class="contact-avatar">
                             {% if contact.profilePicUrl %}
                                 <img src="{{ contact.profilePicUrl }}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
@@ -222,15 +222,11 @@
                             {% endif %}
                         </div>
                         <div class="contact-info">
-                            <div class="contact-name">{{ contact.display_name }}</div>
-                            <div class="contact-last-message">{{ contact.last_message_text }}</div>
+                            <div class="contact-name">{{ contact.pushName }}</div>
                         </div>
                         <div class="contact-meta">
-                            {% if contact.formatted_last_time %}
-                                <div>{{ contact.formatted_last_time }}</div>
-                            {% endif %}
-                            {% if contact.message_count > 0 %}
-                                <div class="message-count">{{ contact.message_count }}</div>
+                            {% if contact.formatted_time %}
+                                <div>{{ contact.formatted_time }}</div>
                             {% endif %}
                         </div>
                     </div>

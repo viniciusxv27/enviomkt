@@ -1,3 +1,4 @@
+import datetime
 from flask import Flask, render_template, request, redirect, url_for
 import pandas as pd
 import os
@@ -170,22 +171,30 @@ def get_contacts_from_instance(instance_name):
     base_url = os.getenv('EVOLUTION_BASE_URL', '')
     headers = get_evolution_api_headers()
     try:
-        url = f"{base_url}/chat/fetchChats/{instance_name}"
-        payload = {"where": {"archived": False}, "limit": 100}
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        url = f"{base_url}/chat/findChats/{instance_name}"
+        response = requests.post(url, headers=headers, timeout=15)
         if response.status_code == 200:
             data = response.json()
             chats = data if isinstance(data, list) else data.get('data', [])
             for chat in chats:
                 remote_jid = chat.get('remoteJid') or chat.get('id')
                 if remote_jid and not remote_jid.endswith('@g.us'):
+                    # Formatar timestamp
+                    formatted_time = chat.get('updatedAt', '')
+                    if formatted_time and 'T' in formatted_time:
+                        try:
+                            # Parse ISO format: 2025-08-12T10:03:11.000Z
+                            dt = datetime.datetime.fromisoformat(formatted_time.replace('Z', '+00:00'))
+                            formatted_time = dt.strftime('%d/%m/%Y %H:%M')
+                        except:
+                            formatted_time = 'Data inválida'
+                    
                     contacts.append({
                         'remoteJid': remote_jid,
-                        'name': chat.get('name') or chat.get('pushName') or remote_jid.split('@')[0],
+                        'profilePicUrl': chat.get('profilePicUrl', ''),
+                        'name': chat.get('pushName') or remote_jid.split('@')[0],
                         'pushName': chat.get('pushName', ''),
-                        'lastMessage': str(chat.get('lastMessage', '')),
-                        'unreadCount': chat.get('unreadCount', 0),
-                        'formatted_time': 'Agora'
+                        'formatted_time': formatted_time
                     })
         else:
             print(f"❌ Erro ao buscar contatos na Evolution API: {response.status_code} - {response.text}")
