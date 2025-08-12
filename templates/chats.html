@@ -208,7 +208,7 @@
                 <input type="text" placeholder="🔍 Buscar contato..." id="searchInput" onkeyup="searchContacts()">
             </div>
             {% endif %}
-            <div class="contacts-list" id="contactsList">
+            <div class="contacts-list" id="contactsList" style="height: calc(100vh - 120px); overflow-y: auto;">
                 {% if contacts %}
                     {% for contact in contacts %}
                     <div class="contact-item {% if contact.remoteJid == selected_jid %}active{% endif %}" onclick="openChat('{{ contact.remoteJid }}')">
@@ -238,21 +238,31 @@
             </div>
         </div>
 
-        <div class="messages-panel">
+        <div class="messages-panel" style="flex:1; display:flex; flex-direction:column; height:100vh; overflow:hidden;">
             {% if selected_jid and messages %}
-            <div style="width:100%; max-width:700px; margin:auto;">
+            <div style="width:100%; max-width:700px; margin:auto; flex:1; display:flex; flex-direction:column; height:100%;">
                 <h3 style="color:#2c3e50; margin-bottom:20px;">Mensagens de {{ contact_info.pushName or contact_info.remoteJid }}</h3>
+                <div id="messagesScroll" style="flex:1; overflow-y:auto; padding-bottom:20px;">
                 {% for msg in messages %}
-                <div class="message {% if msg.key.fromMe %}sent{% else %}received{% endif %}" style="margin-bottom:18px;">
-                    <div style="background:#fff; border-radius:12px; padding:12px 16px; box-shadow:0 2px 8px #0001;">
+                <div class="message {% if msg.key.fromMe %}sent{% else %}received{% endif %}" style="margin-bottom:18px; display:flex; align-items:flex-end;">
+                    {% if not msg.key.fromMe %}
+                    <div class="contact-avatar" style="margin-right:10px;">
+                        {% if contact_info and contact_info.profilePicUrl %}
+                            <img src="{{ contact_info.profilePicUrl }}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                        {% else %}
+                            👤
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div style="background:#fff; border-radius:12px; padding:12px 16px; box-shadow:0 2px 8px #0001; max-width:80%;">
                         {% if msg.messageType == 'conversation' and msg.message.conversation %}
-                            <div>{{ msg.message.conversation }}</div>
+                            <div>{{ msg.message.conversation|safe|replace('*', '<b>')|replace('*', '</b>')|replace('<b></b>', '')|replace('</b><b>', '')|replace('<b>', '<strong>')|replace('</b>', '</strong>')|safe }}</div>
                         {% elif msg.messageType == 'extendedTextMessage' and msg.message.extendedTextMessage.text %}
-                            <div>{{ msg.message.extendedTextMessage.text }}</div>
+                            <div>{{ msg.message.extendedTextMessage.text|safe|replace('*', '<b>')|replace('*', '</b>')|replace('<b></b>', '')|replace('</b><b>', '')|replace('<b>', '<strong>')|replace('</b>', '</strong>')|safe }}</div>
                         {% elif msg.messageType == 'imageMessage' and msg.message.imageMessage.url %}
                             <img src="{{ msg.message.imageMessage.url }}" style="max-width:300px; border-radius:8px; margin-bottom:8px;" />
                             {% if msg.message.imageMessage.caption %}
-                                <div>{{ msg.message.imageMessage.caption }}</div>
+                                <div>{{ msg.message.imageMessage.caption|safe|replace('*', '<b>')|replace('*', '</b>')|replace('<b></b>', '')|replace('</b><b>', '')|replace('<b>', '<strong>')|replace('</b>', '</strong>')|safe }}</div>
                             {% endif %}
                         {% elif msg.messageType == 'contactMessage' and msg.message.contactMessage.displayName %}
                             <div><b>Contato:</b> {{ msg.message.contactMessage.displayName }}</div>
@@ -263,7 +273,15 @@
                     </div>
                 </div>
                 {% endfor %}
+                </div>
             </div>
+            <script>
+                // Scroll automático para a última mensagem
+                window.onload = function() {
+                    var objDiv = document.getElementById("messagesScroll");
+                    if(objDiv) objDiv.scrollTop = objDiv.scrollHeight;
+                }
+            </script>
             {% elif selected_jid %}
             <div class="welcome-message">
                 <h3>💬 Nenhuma mensagem encontrada</h3>
