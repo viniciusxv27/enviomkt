@@ -165,74 +165,69 @@ def get_instance_status(instance_name):
         return 'close'
 
 def get_contacts_from_instance(instance_name):
-    """Busca todos os contatos/chats de uma instância diretamente do banco Evolution"""
+    """Busca todos os contatos/chats de uma instância via Evolution API"""
     contacts = []
-    connection = get_evolution_db_connection()
-    if not connection:
-        print("❌ Não foi possível conectar ao banco Evolution.")
-        return []
+    base_url = os.getenv('EVOLUTION_BASE_URL', '')
+    headers = get_evolution_api_headers()
     try:
-        cursor = connection.cursor(dictionary=True)
-        query = "SELECT remoteJid, name, pushName FROM Contact WHERE instance = %s LIMIT 100"
-        cursor.execute(query, (instance_name,))
-        results = cursor.fetchall()
-        for row in results:
-            contacts.append({
-                'remoteJid': row['remoteJid'],
-                'name': row.get('name') or row.get('pushName') or row['remoteJid'].split('@')[0],
-                'pushName': row.get('pushName', ''),
-                'lastMessage': '',
-                'unreadCount': 0,
-                'formatted_time': ''
-            })
-        print(f"📱 Contatos encontrados via banco Evolution: {len(contacts)}")
-        return contacts
+        url = f"{base_url}/chat/fetchChats/{instance_name}"
+        payload = {"where": {"archived": False}, "limit": 100}
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            chats = data if isinstance(data, list) else data.get('data', [])
+            for chat in chats:
+                remote_jid = chat.get('remoteJid') or chat.get('id')
+                if remote_jid and not remote_jid.endswith('@g.us'):
+                    contacts.append({
+                        'remoteJid': remote_jid,
+                        'name': chat.get('name') or chat.get('pushName') or remote_jid.split('@')[0],
+                        'pushName': chat.get('pushName', ''),
+                        'lastMessage': str(chat.get('lastMessage', '')),
+                        'unreadCount': chat.get('unreadCount', 0),
+                        'formatted_time': 'Agora'
+                    })
+        else:
+            print(f"❌ Erro ao buscar contatos na Evolution API: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"❌ Erro ao buscar contatos no banco Evolution: {e}")
-        return []
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+        print(f"❌ Erro ao buscar contatos na Evolution API: {e}")
+    return contacts
 
 def get_messages_from_chat(instance_name, remote_jid, limit=50):
-    """Busca todas as mensagens do contato diretamente do banco Evolution"""
-    connection = get_evolution_db_connection()
-    if not connection:
-        print("❌ Não foi possível conectar ao banco Evolution.")
-        return []
+    """Busca mensagens de um chat específico via Evolution API"""
+    base_url = os.getenv('EVOLUTION_BASE_URL', '')
+    headers = get_evolution_api_headers()
+    messages = []
     try:
-        cursor = connection.cursor(dictionary=True)
-        query = """
-        SELECT m.*, c.name as contact_name 
-        FROM Message m 
-        LEFT JOIN Contact c ON m.remoteJid = c.remoteJid AND m.instance = c.instance
-        WHERE m.instance = %s AND m.remoteJid = %s 
-        ORDER BY m.messageTimestamp DESC 
-        LIMIT %s
-        """
-        cursor.execute(query, (instance_name, remote_jid, limit))
-        messages = cursor.fetchall()
-        # Processar mensagens para formato mais amigável
-        for msg in messages:
-            if msg.get('messageTimestamp'):
-                import datetime
-                try:
-                    msg['formatted_time'] = datetime.datetime.fromtimestamp(
-                        int(msg['messageTimestamp']) / 1000
-                    ).strftime('%d/%m/%Y %H:%M')
-                except:
-                    msg['formatted_time'] = 'Data inválida'
-            else:
-                msg['formatted_time'] = 'Sem data'
-        return messages
+        url = f"{base_url}/chat/findMessages/{instance_name}"
+        payload = {
+            "where": {
+                "remoteJid": remote_jid
+            },
+            "limit": limit
+        }
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            msgs = data if isinstance(data, list) else data.get('data', [])
+            for msg in msgs:
+                # Formatar timestamp
+                if msg.get('messageTimestamp'):
+                    import datetime
+                    try:
+                        msg['formatted_time'] = datetime.datetime.fromtimestamp(
+                            int(msg['messageTimestamp']) / 1000
+                        ).strftime('%d/%m/%Y %H:%M')
+                    except:
+                        msg['formatted_time'] = 'Data inválida'
+                else:
+                    msg['formatted_time'] = 'Sem data'
+                messages.append(msg)
+        else:
+            print(f"❌ Erro ao buscar mensagens na Evolution API: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Erro ao buscar mensagens: {e}")
-        return []
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+        print(f"❌ Erro ao buscar mensagens na Evolution API: {e}")
+    return messages
 
 def update_whatsapp_number_description(numero_id, new_description):
     """Atualiza a descrição de um número do WhatsApp"""
