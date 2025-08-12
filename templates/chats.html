@@ -272,17 +272,14 @@
                     </div>
                     {% endif %}
                     <div style="background:#fff; border-radius:12px; padding:12px 16px; box-shadow:0 2px 8px #0001; max-width:80%;">
-                        {% macro bold_whatsapp(text) %}
-                            {{ text|replace('\n', '<br>')|regex_replace(r'\*(.*?)\*', r'<strong>\\1</strong>')|safe }}
-                        {% endmacro %}
                         {% if msg.messageType == 'conversation' and msg.message.conversation %}
-                            <div>{{ bold_whatsapp(msg.message.conversation) }}</div>
+                            <div>{{ msg.message.conversation|replace('*', '<strong>')|replace('<strong>', '</strong>', 1)|safe }}</div>
                         {% elif msg.messageType == 'extendedTextMessage' and msg.message.extendedTextMessage.text %}
-                            <div>{{ bold_whatsapp(msg.message.extendedTextMessage.text) }}</div>
+                            <div>{{ msg.message.extendedTextMessage.text|replace('*', '<strong>')|replace('<strong>', '</strong>', 1)|safe }}</div>
                         {% elif msg.messageType == 'imageMessage' and msg.message.imageMessage.url %}
                             <img src="{{ msg.message.imageMessage.url }}" style="max-width:300px; border-radius:8px; margin-bottom:8px;" />
                             {% if msg.message.imageMessage.caption %}
-                                <div>{{ bold_whatsapp(msg.message.imageMessage.caption) }}</div>
+                                <div>{{ msg.message.imageMessage.caption|replace('*', '<strong>')|replace('<strong>', '</strong>', 1)|safe }}</div>
                             {% endif %}
                         {% elif msg.messageType == 'contactMessage' and msg.message.contactMessage.displayName %}
                             <div><b>Contato:</b> {{ msg.message.contactMessage.displayName }}</div>
