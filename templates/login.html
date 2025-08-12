@@ -2,94 +2,102 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Login - Vivo</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login - EnvioMKT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap');
         body {
-            background: #fff;
-            font-family: 'Roboto', Arial, sans-serif;
+            background: linear-gradient(135deg, #7e3ff2 0%, #e0e7ff 100%);
+            font-family: 'Montserrat', Arial, sans-serif;
+            min-height: 100vh;
             margin: 0;
-            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .login-container {
-            max-width: 360px;
-            margin: 60px auto;
             background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 24px rgba(120, 0, 120, 0.10);
-            padding: 40px 32px 32px 32px;
+            padding: 40px 36px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(44, 62, 80, 0.15);
+            max-width: 350px;
+            width: 100%;
             text-align: center;
         }
-        .vivo-logo {
-            width: 80px;
+        .login-logo {
             margin-bottom: 24px;
         }
-        h2 {
-            color: #8300e9;
-            margin-bottom: 24px;
+        .login-logo img {
+            width: 80px;
+        }
+        h1 {
+            font-family: 'Montserrat', Arial, sans-serif;
+            color: #7e3ff2;
+            font-size: 1.7rem;
             font-weight: 700;
+            margin-bottom: 18px;
         }
         .form-group {
             margin-bottom: 18px;
             text-align: left;
         }
         label {
-            color: #8300e9;
-            font-weight: 500;
-            display: block;
+            font-weight: 600;
+            color: #2c3e50;
             margin-bottom: 6px;
+            display: block;
+            font-size: 0.95rem;
         }
         input[type="text"], input[type="password"] {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #d1b3f7;
-            border-radius: 6px;
-            font-size: 16px;
+            border: 1px solid #cfd8dc;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1rem;
+            font-family: 'Montserrat', Arial, sans-serif;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+        input:focus {
             outline: none;
-            transition: border 0.2s;
+            border-color: #7e3ff2;
         }
-        input[type="text"]:focus, input[type="password"]:focus {
-            border-color: #8300e9;
-        }
-        .login-btn {
-            width: 100%;
-            background: linear-gradient(90deg, #8300e9 60%, #b266ff 100%);
+        .btn {
+            background: linear-gradient(135deg, #7e3ff2 0%, #b47aff 100%);
             color: #fff;
             border: none;
-            border-radius: 6px;
-            padding: 12px;
-            font-size: 18px;
-            font-weight: 700;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1rem;
+            font-family: 'Montserrat', Arial, sans-serif;
             cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(108, 71, 255, 0.15);
             margin-top: 10px;
-            transition: background 0.2s;
         }
-        .login-btn:hover {
-            background: linear-gradient(90deg, #6d00c2 60%, #a259e6 100%);
+        .btn:hover {
+            background: linear-gradient(135deg, #b47aff 0%, #7e3ff2 100%);
         }
-        .forgot-link {
-            display: block;
-            margin-top: 16px;
-            color: #8300e9;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        .forgot-link:hover {
-            text-decoration: underline;
-        }
-        @media (max-width: 400px) {
-            .login-container {
-                padding: 24px 8px;
-            }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            border-left: 4px solid #dc3545;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <img src="https://media.licdn.com/dms/image/v2/D4D0BAQFlKIJlEUoCbQ/company-logo_200_200/B4DZZjECDoHwAI-/0/1745418724233?e=2147483647&v=beta&t=3tV_Q9dl5u037NT3TNeZcuuP9_0cRvaDTrHN3RH1nSM" alt="Vivo Logo" class="vivo-logo">
-        <h2>Entrar na sua conta Vivo</h2>
-        <form method="post">
+        <div class="login-logo">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Logo_Vivo.png" alt="Logo Vivo">
+        </div>
+        <h1>Bem-vindo ao EnvioMKT</h1>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="POST">
             <div class="form-group">
                 <label for="username">Usuário</label>
                 <input type="text" id="username" name="username" required autofocus>
@@ -98,9 +106,8 @@
                 <label for="password">Senha</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit" class="login-btn">Entrar</button>
+            <button type="submit" class="btn">Entrar</button>
         </form>
-        <a href="#" class="forgot-link">Esqueceu a senha?</a>
     </div>
 </body>
 </html>
