@@ -170,8 +170,8 @@ def get_contacts_from_instance(instance_name):
     base_url = os.getenv('EVOLUTION_BASE_URL', '')
     headers = get_evolution_api_headers()
     try:
-        url = f"{base_url}/chat/fetchChats/{instance_name}"
-        payload = {"where": {"archived": False}, "limit": 100}
+        url = f"{base_url}/chat/findContacts/{instance_name}"
+        payload = {"where": {}}
         response = requests.post(url, json=payload, headers=headers, timeout=15)
         if response.status_code == 200:
             data = response.json()
@@ -193,7 +193,7 @@ def get_contacts_from_instance(instance_name):
         print(f"❌ Erro ao buscar contatos na Evolution API: {e}")
     return contacts
 
-def get_messages_from_chat(instance_name, remote_jid, limit=50):
+def get_messages_from_chat(instance_name, remote_jid):
     """Busca mensagens de um chat específico via Evolution API"""
     base_url = os.getenv('EVOLUTION_BASE_URL', '')
     headers = get_evolution_api_headers()
@@ -202,9 +202,10 @@ def get_messages_from_chat(instance_name, remote_jid, limit=50):
         url = f"{base_url}/chat/findMessages/{instance_name}"
         payload = {
             "where": {
-                "remoteJid": remote_jid
-            },
-            "limit": limit
+                "key" : {
+                    "remoteJid": remote_jid
+                }
+            }
         }
         response = requests.post(url, json=payload, headers=headers, timeout=15)
         if response.status_code == 200:
