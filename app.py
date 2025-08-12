@@ -572,10 +572,63 @@ def visualizar_chats(instancia):
     
     # Buscar todos os contatos/chats da instância
     contacts = get_contacts_from_instance(instancia)
-    
+    remote_jid = request.args.get('remoteJid')
+    messages = []
+    contact_info = None
+    if remote_jid:
+        messages, contact_info = get_messages_and_info(instancia, remote_jid)
     return render_template('chats.html', 
                          contacts=contacts,
-                         instancia=instancia)
+                         instancia=instancia,
+                         selected_jid=remote_jid,
+                         messages=messages,
+                         contact_info=contact_info)
+
+def get_messages_and_info(instance_name, remote_jid, limit=50):
+    """Busca mensagens e info do contato via Evolution API"""
+    base_url = os.getenv('EVOLUTION_BASE_URL', '')
+    headers = get_evolution_api_headers()
+    messages = []
+    contact_info = None
+    try:
+        url = f"{base_url}/chat/findMessages/{instance_name}"
+        payload = {
+            "where": {
+                "key": {
+                    "remoteJid": remote_jid
+                }
+            },
+            "limit": limit
+        }
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            records = data.get('messages', {}).get('records', [])
+            for msg in records:
+                # Formatar timestamp
+                if msg.get('messageTimestamp'):
+                    import datetime
+                    try:
+                        msg['formatted_time'] = datetime.datetime.fromtimestamp(
+                            int(msg['messageTimestamp'])
+                        ).strftime('%d/%m/%Y %H:%M')
+                    except:
+                        msg['formatted_time'] = 'Data inválida'
+                else:
+                    msg['formatted_time'] = 'Sem data'
+                messages.append(msg)
+            # Info do contato
+            if records and 'key' in records[0]:
+                contact_info = {
+                    'remoteJid': records[0]['key']['remoteJid'],
+                    'fromMe': records[0]['key'].get('fromMe', False),
+                    'pushName': records[0].get('pushName', '')
+                }
+        else:
+            print(f"❌ Erro ao buscar mensagens na Evolution API: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Erro ao buscar mensagens na Evolution API: {e}")
+    return messages, contact_info
 
 @app.route('/mensagens/<string:instancia>/<string:remote_jid>')
 def visualizar_mensagens(instancia, remote_jid):

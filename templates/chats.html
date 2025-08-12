@@ -203,17 +203,15 @@
             <div class="contacts-header">
                 <h3>📞 Contatos ({{ contacts|length }})</h3>
             </div>
-            
             {% if contacts|length > 5 %}
             <div class="search-box">
                 <input type="text" placeholder="🔍 Buscar contato..." id="searchInput" onkeyup="searchContacts()">
             </div>
             {% endif %}
-
             <div class="contacts-list" id="contactsList">
                 {% if contacts %}
                     {% for contact in contacts %}
-                    <div class="contact-item" onclick="openChat('{{ contact.remoteJid }}', '{{ contact.pushName }}')">
+                    <div class="contact-item {% if contact.remoteJid == selected_jid %}active{% endif %}" onclick="openChat('{{ contact.remoteJid }}')">
                         <div class="contact-avatar">
                             {% if contact.profilePicUrl %}
                                 <img src="{{ contact.profilePicUrl }}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
@@ -222,7 +220,7 @@
                             {% endif %}
                         </div>
                         <div class="contact-info">
-                            <div class="contact-name">{{ contact.pushName }}</div>
+                            <div class="contact-name">{{ contact.pushName or contact.name or contact.remoteJid }}</div>
                         </div>
                         <div class="contact-meta">
                             {% if contact.formatted_time %}
@@ -241,19 +239,49 @@
         </div>
 
         <div class="messages-panel">
+            {% if selected_jid and messages %}
+            <div style="width:100%; max-width:700px; margin:auto;">
+                <h3 style="color:#2c3e50; margin-bottom:20px;">Mensagens de {{ contact_info.pushName or contact_info.remoteJid }}</h3>
+                {% for msg in messages %}
+                <div class="message {% if msg.key.fromMe %}sent{% else %}received{% endif %}" style="margin-bottom:18px;">
+                    <div style="background:#fff; border-radius:12px; padding:12px 16px; box-shadow:0 2px 8px #0001;">
+                        {% if msg.messageType == 'conversation' and msg.message.conversation %}
+                            <div>{{ msg.message.conversation }}</div>
+                        {% elif msg.messageType == 'extendedTextMessage' and msg.message.extendedTextMessage.text %}
+                            <div>{{ msg.message.extendedTextMessage.text }}</div>
+                        {% elif msg.messageType == 'imageMessage' and msg.message.imageMessage.url %}
+                            <img src="{{ msg.message.imageMessage.url }}" style="max-width:300px; border-radius:8px; margin-bottom:8px;" />
+                            {% if msg.message.imageMessage.caption %}
+                                <div>{{ msg.message.imageMessage.caption }}</div>
+                            {% endif %}
+                        {% elif msg.messageType == 'contactMessage' and msg.message.contactMessage.displayName %}
+                            <div><b>Contato:</b> {{ msg.message.contactMessage.displayName }}</div>
+                        {% else %}
+                            <div><i>Mensagem não suportada ou vazia</i></div>
+                        {% endif %}
+                        <div style="font-size:0.8rem; color:#667781; margin-top:6px; text-align:right;">{{ msg.formatted_time }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif selected_jid %}
+            <div class="welcome-message">
+                <h3>💬 Nenhuma mensagem encontrada</h3>
+                <p>Este contato não possui mensagens ou elas não foram sincronizadas.</p>
+            </div>
+            {% else %}
             <div class="welcome-message">
                 <h3>💬 Selecione um contato</h3>
                 <p>Clique em um contato à esquerda para visualizar as mensagens da conversa.</p>
             </div>
+            {% endif %}
         </div>
     </div>
 
     <script>
-        function openChat(remoteJid, contactName) {
-            // Codificar o remoteJid para URL
+        function openChat(remoteJid) {
             const encodedJid = encodeURIComponent(remoteJid);
-            // Abrir em nova janela/aba ou na mesma
-            window.location.href = `/mensagens/{{ instancia }}/${encodedJid}`;
+            window.location.href = `/chats/{{ instancia }}?remoteJid=${encodedJid}`;
         }
 
         function searchContacts() {
