@@ -605,13 +605,12 @@ def get_messages_and_info(instance_name, remote_jid, limit=50):
             data = response.json()
             records = data.get('messages', {}).get('records', [])
             for msg in records:
-                # Formatar timestamp
+                # Formatar timestamp e subtrair 3 horas
                 if msg.get('messageTimestamp'):
                     import datetime
                     try:
-                        msg['formatted_time'] = datetime.datetime.fromtimestamp(
-                            int(msg['messageTimestamp'])
-                        ).strftime('%d/%m/%Y %H:%M')
+                        dt = datetime.datetime.fromtimestamp(int(msg['messageTimestamp'])) - datetime.timedelta(hours=3)
+                        msg['formatted_time'] = dt.strftime('%d/%m/%Y %H:%M')
                     except:
                         msg['formatted_time'] = 'Data inválida'
                 else:
