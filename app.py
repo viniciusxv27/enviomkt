@@ -239,16 +239,20 @@ def get_messages_from_chat(instance_name, remote_jid):
         print(f"❌ Erro ao buscar mensagens na Evolution API: {e}")
     return messages
 
-def update_whatsapp_number_description(numero_id, new_description):
-    """Atualiza a descrição de um número do WhatsApp"""
+def update_whatsapp_number_description(numero_id, new_description, link_planilha=None):
+    """Atualiza a descrição e link da planilha de um número do WhatsApp"""
     connection = get_db_connection()
     if not connection:
         return False
     
     try:
         cursor = connection.cursor()
-        query = "UPDATE numeros SET descricao = %s WHERE id = %s"
-        cursor.execute(query, (new_description, numero_id))
+        if link_planilha is not None:
+            query = "UPDATE numeros SET descricao = %s, link_planilha = %s WHERE id = %s"
+            cursor.execute(query, (new_description, link_planilha, numero_id))
+        else:
+            query = "UPDATE numeros SET descricao = %s WHERE id = %s"
+            cursor.execute(query, (new_description, numero_id))
         connection.commit()
         return True
     except Error as e:
@@ -334,7 +338,7 @@ def get_whatsapp_numbers():
             cursor.close()
             connection.close()
 
-def create_whatsapp_number(numero, remotejid, descricao, instancia):
+def create_whatsapp_number(numero, remotejid, descricao, instancia, link_planilha=None):
     """Cria um novo número do WhatsApp"""
     connection = get_db_connection()
     if not connection:
@@ -343,8 +347,8 @@ def create_whatsapp_number(numero, remotejid, descricao, instancia):
     try:
         cursor = connection.cursor()
         # Usar a tabela correta: numeros
-        query = "INSERT INTO numeros (numero, remotejid, descricao, instancia) VALUES (%s, %s, %s, %s)"
-        cursor.execute(query, (numero, remotejid, descricao, instancia))
+        query = "INSERT INTO numeros (numero, remotejid, descricao, instancia, link_planilha) VALUES (%s, %s, %s, %s, %s)"
+        cursor.execute(query, (numero, remotejid, descricao, instancia, link_planilha))
         connection.commit()
         return True
     except Error as e:
@@ -456,6 +460,7 @@ def criar_numero():
             remotejid = request.form.get('remotejid', '').strip()
             descricao = request.form.get('descricao', '').strip()
             instancia = request.form.get('instancia', '').strip()
+            link_planilha = request.form.get('link_planilha', '').strip()
             
             if not all([numero, remotejid, descricao, instancia]):
                 return render_template('criar_numero.html', error='Todos os campos são obrigatórios')
@@ -471,7 +476,7 @@ def criar_numero():
                                      error='WhatsApp ainda não está conectado. Escaneie o QR Code.')
             
             # Salvar o número no banco
-            if create_whatsapp_number(numero, remotejid, descricao, instancia):
+            if create_whatsapp_number(numero, remotejid, descricao, instancia, link_planilha):
                 return redirect(url_for('numeros'))
             else:
                 return render_template('criar_numero.html', error='Erro ao criar número')
@@ -541,8 +546,9 @@ def editar_numero(numero_id):
     
     if request.method == 'POST':
         nova_descricao = request.form.get('descricao', '').strip()
+        link_planilha = request.form.get('link_planilha', '').strip()
         if nova_descricao:
-            if update_whatsapp_number_description(numero_id, nova_descricao):
+            if update_whatsapp_number_description(numero_id, nova_descricao, link_planilha):
                 return redirect(url_for('numeros'))
     
     # Buscar dados do número
@@ -686,6 +692,24 @@ def index():# Verifica se o usuário está autenticado
         if not instancia:
             return render_template('index.html', error='Selecione um número do WhatsApp', numbers=numbers)
             
+        # Buscar link_planilha da instância selecionada
+        link_planilha = None
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor(dictionary=True)
+                query = "SELECT link_planilha FROM numeros WHERE instancia = %s LIMIT 1"
+                cursor.execute(query, (instancia,))
+                result = cursor.fetchone()
+                if result:
+                    link_planilha = result.get('link_planilha')
+            except Error as e:
+                print(f"Erro ao buscar link_planilha: {e}")
+            finally:
+                if connection.is_connected():
+                    cursor.close()
+                    connection.close()
+            
         data_agendamento = request.form.get('schedule_date') if request.form.get('schedule_date') else None
         horario_agendamento = request.form.get('schedule_time') if request.form.get('schedule_time') else None
         haImg = False
@@ -738,7 +762,8 @@ def index():# Verifica se o usuário está autenticado
                     'base64': image_base64 if haImg else None,
                     'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento,
-                    'instancia': instancia
+                    'instancia': instancia,
+                    'link_planilha': link_planilha
                 }
 
                 print("Payload sendo enviado:", payload)
