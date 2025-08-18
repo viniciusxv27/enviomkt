@@ -263,6 +263,26 @@ def update_whatsapp_number_description(numero_id, new_description, link_planilha
             cursor.close()
             connection.close()
 
+def delete_whatsapp_number(numero_id):
+    """Remove um número do WhatsApp do banco de dados"""
+    connection = get_db_connection()
+    if not connection:
+        return False
+    
+    try:
+        cursor = connection.cursor()
+        query = "DELETE FROM numeros WHERE id = %s"
+        cursor.execute(query, (numero_id,))
+        connection.commit()
+        return cursor.rowcount > 0  # Retorna True se algum registro foi deletado
+    except Error as e:
+        print(f"Erro ao remover número: {e}")
+        return False
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
 # Configuração do banco de dados
 def get_db_connection():
     """Conexão com o banco principal do sistema"""
@@ -569,6 +589,28 @@ def editar_numero(numero_id):
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+@app.route('/numeros/remover/<int:numero_id>', methods=['POST'])
+def remover_numero(numero_id):
+    """Remove um número do WhatsApp"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    try:
+        if delete_whatsapp_number(numero_id):
+            return redirect(url_for('numeros'))
+        else:
+            # Se não conseguiu remover, volta para a lista com erro
+            numbers = get_whatsapp_numbers()
+            return render_template('numeros.html', 
+                                 numbers=numbers, 
+                                 error='Erro ao remover o número. Verifique se ele existe.')
+    except Exception as e:
+        print(f"Erro ao remover número: {e}")
+        numbers = get_whatsapp_numbers()
+        return render_template('numeros.html', 
+                             numbers=numbers, 
+                             error=f'Erro ao remover número: {str(e)}')
 
 @app.route('/chats/<string:instancia>')
 def visualizar_chats(instancia):

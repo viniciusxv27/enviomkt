@@ -135,6 +135,15 @@
         .btn-reconnect:hover {
             background-color: #e0a800;
         }
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
         .actions-cell {
             white-space: nowrap;
             min-width: 200px;
@@ -201,6 +210,11 @@
                                 🔄 Reconectar
                             </a>
                             {% endif %}
+                            <form method="POST" action="/numeros/remover/{{ number.id }}" style="display: inline;" onsubmit="return confirm('⚠️ Tem certeza que deseja remover este número?\n\n{{ number.numero }} - {{ number.descricao }}\n\nEsta ação não pode ser desfeita!')">
+                                <button type="submit" class="btn-sm btn-delete">
+                                    🗑️ Remover
+                                </button>
+                            </form>
                         </div>
                     </td>
                 </tr>
