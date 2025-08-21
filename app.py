@@ -755,8 +755,11 @@ def index():# Verifica se o usuário está autenticado
         data_agendamento = request.form.get('schedule_date') if request.form.get('schedule_date') else None
         horario_agendamento = request.form.get('schedule_time') if request.form.get('schedule_time') else None
         haImg = False
+        haVideo = False
         leads = []
 
+        # Processar imagem se fornecida
+        image_base64 = None
         if request.files['image_file'] and request.files['image_file'].filename:
             haImg = True
             image_file = request.files['image_file']
@@ -764,8 +767,20 @@ def index():# Verifica se o usuário está autenticado
             image_file.save(image_path)
             with open(image_path, "rb") as img_file:
                 image_base64 = base64.b64encode(img_file.read()).decode('utf-8')
-        else:
-            image_base64 = None
+
+        # Processar vídeo se fornecida
+        video_base64 = None
+        if request.files['video_file'] and request.files['video_file'].filename:
+            video_file = request.files['video_file']
+            # Verificar se é MP4
+            if not video_file.filename.lower().endswith('.mp4'):
+                return render_template('index.html', error='Apenas arquivos MP4 são permitidos para vídeo', numbers=numbers)
+            
+            haVideo = True
+            video_path = os.path.join(app.config['UPLOAD_FOLDER'], video_file.filename)
+            video_file.save(video_path)
+            with open(video_path, "rb") as vid_file:
+                video_base64 = base64.b64encode(vid_file.read()).decode('utf-8')
 
         try:
             if file and file.filename.endswith('.xlsx'):
@@ -779,6 +794,8 @@ def index():# Verifica se o usuário está autenticado
                 print("Número WhatsApp selecionado:", instancia)
                 print("Data agendamento:", data_agendamento)
                 print("Horário agendamento:", horario_agendamento)
+                print("Tem imagem:", haImg)
+                print("Tem vídeo:", haVideo)
                 print("Dados importados:")
                 for row in data_list:
                     filial = row.get('Filial')
@@ -802,6 +819,8 @@ def index():# Verifica se o usuário está autenticado
                     'leads': leads,
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
+                    'haVideo': haVideo,
+                    'videoBase64': video_base64 if haVideo else None,
                     'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento,
                     'instancia': instancia,
