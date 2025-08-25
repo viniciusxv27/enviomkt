@@ -22,12 +22,32 @@ load_dotenv()
 def get_minio_client():
     """Retorna cliente do MinIO configurado"""
     try:
+        endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
+        access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+        secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+        secure = os.getenv('MINIO_SECURE', 'False').lower() == 'true'
+        
+        # Remover protocolo se presente no endpoint
+        if endpoint.startswith('https://'):
+            endpoint = endpoint.replace('https://', '')
+            secure = True  # Se URL tem https, forçar secure=True
+        elif endpoint.startswith('http://'):
+            endpoint = endpoint.replace('http://', '')
+            secure = False  # Se URL tem http, forçar secure=False
+        
+        print(f"Conectando MinIO: endpoint={endpoint}, secure={secure}")
+        
         client = Minio(
-            os.getenv('MINIO_ENDPOINT', 'localhost:9000'),
-            access_key=os.getenv('MINIO_ACCESS_KEY', 'minioadmin'),
-            secret_key=os.getenv('MINIO_SECRET_KEY', 'minioadmin'),
-            secure=os.getenv('MINIO_SECURE', 'False').lower() == 'true'
+            endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure
         )
+        
+        # Testar conexão
+        client.list_buckets()
+        print("Conexão com MinIO estabelecida com sucesso")
+        
         return client
     except Exception as e:
         print(f"Erro ao configurar MinIO: {e}")
@@ -41,38 +61,83 @@ def ensure_bucket_exists():
             return False
         
         bucket_name = os.getenv('MINIO_BUCKET_NAME', 'disparo')
+        print(f"Verificando bucket: {bucket_name}")
         
         # Verificar se bucket existe, se não, criar
         if not client.bucket_exists(bucket_name):
+            print(f"Bucket '{bucket_name}' não existe, criando...")
             client.make_bucket(bucket_name)
             print(f"Bucket '{bucket_name}' criado com sucesso")
+        else:
+            print(f"Bucket '{bucket_name}' já existe")
         
         return True
     except Exception as e:
         print(f"Erro ao verificar/criar bucket: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def test_minio_connection():
+    """Testa a conexão com MinIO"""
+    try:
+        print("=== TESTE DE CONEXÃO MINIO ===")
+        client = get_minio_client()
+        if not client:
+            print("❌ Falha ao criar cliente MinIO")
+            return False
+        
+        print("✅ Cliente MinIO criado")
+        
+        # Listar buckets para testar conexão
+        buckets = client.list_buckets()
+        print(f"✅ Conexão testada - buckets encontrados: {len(buckets)}")
+        for bucket in buckets:
+            print(f"  - {bucket.name}")
+        
+        # Testar bucket específico
+        bucket_name = os.getenv('MINIO_BUCKET_NAME', 'disparo')
+        if client.bucket_exists(bucket_name):
+            print(f"✅ Bucket '{bucket_name}' existe")
+        else:
+            print(f"⚠️  Bucket '{bucket_name}' não existe")
+        
+        return True
+    except Exception as e:
+        print(f"❌ Erro no teste de conexão: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def upload_video_to_minio(video_path, original_filename):
     """Faz upload do vídeo para o MinIO e retorna a URL"""
     try:
+        print(f"Iniciando upload do vídeo: {original_filename}")
+        
         client = get_minio_client()
         if not client:
             raise Exception("Erro ao conectar com MinIO")
         
         bucket_name = os.getenv('MINIO_BUCKET_NAME', 'disparo')
+        print(f"Usando bucket: {bucket_name}")
         
         # Garantir que bucket existe
+        print("Verificando se bucket existe...")
         if not ensure_bucket_exists():
             raise Exception("Erro ao garantir existência do bucket")
         
         # Gerar nome único para o arquivo
         file_extension = os.path.splitext(original_filename)[1]
         unique_filename = f"videos/{uuid.uuid4()}{file_extension}"
+        print(f"Nome único gerado: {unique_filename}")
         
         # Upload do arquivo
+        print(f"Fazendo upload do arquivo: {video_path}")
         client.fput_object(bucket_name, unique_filename, video_path)
+        print("Upload concluído com sucesso")
         
         # Gerar URL pública (presigned URL com validade longa)
+        print("Gerando URL presigned...")
         video_url = client.presigned_get_object(bucket_name, unique_filename, expires=datetime.timedelta(days=7))
         
         print(f"Vídeo enviado para MinIO: {unique_filename}")
@@ -82,9 +147,13 @@ def upload_video_to_minio(video_path, original_filename):
         
     except S3Error as e:
         print(f"Erro S3 ao fazer upload: {e}")
+        print(f"Código S3: {e.code if hasattr(e, 'code') else 'N/A'}")
+        print(f"Mensagem S3: {e.message if hasattr(e, 'message') else 'N/A'}")
         raise Exception(f"Erro S3: {str(e)}")
     except Exception as e:
         print(f"Erro ao fazer upload para MinIO: {e}")
+        import traceback
+        traceback.print_exc()
         raise Exception(f"Erro MinIO: {str(e)}")
 
 # Funções Evolution API
@@ -625,6 +694,30 @@ def debug_qr(instance_name):
         'has_qr': qr_code is not None,
         'qr_length': len(qr_code) if qr_code else 0
     }
+
+@app.route('/debug/minio')
+def debug_minio():
+    """Debug para conexão MinIO"""
+    if not logado:
+        return redirect(url_for('login'))
+    
+    try:
+        result = test_minio_connection()
+        return {
+            'status': 'success' if result else 'error',
+            'connection_test': result,
+            'endpoint': os.getenv('MINIO_ENDPOINT'),
+            'bucket': os.getenv('MINIO_BUCKET_NAME'),
+            'secure': os.getenv('MINIO_SECURE')
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'endpoint': os.getenv('MINIO_ENDPOINT'),
+            'bucket': os.getenv('MINIO_BUCKET_NAME'),
+            'secure': os.getenv('MINIO_SECURE')
+        }, 500
 
 @app.route('/numeros/editar/<int:numero_id>', methods=['GET', 'POST'])
 def editar_numero(numero_id):
