@@ -8,12 +8,84 @@ import base64
 import mysql.connector
 from mysql.connector import Error
 import time
+from minio import Minio
+from minio.error import S3Error
+import uuid
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 logado = False
 load_dotenv()
+
+# Configuração do MinIO
+def get_minio_client():
+    """Retorna cliente do MinIO configurado"""
+    try:
+        client = Minio(
+            os.getenv('MINIO_ENDPOINT', 'localhost:9000'),
+            access_key=os.getenv('MINIO_ACCESS_KEY', 'minioadmin'),
+            secret_key=os.getenv('MINIO_SECRET_KEY', 'minioadmin'),
+            secure=os.getenv('MINIO_SECURE', 'False').lower() == 'true'
+        )
+        return client
+    except Exception as e:
+        print(f"Erro ao configurar MinIO: {e}")
+        return None
+
+def ensure_bucket_exists():
+    """Garante que o bucket existe"""
+    try:
+        client = get_minio_client()
+        if not client:
+            return False
+        
+        bucket_name = os.getenv('MINIO_BUCKET_NAME', 'disparo')
+        
+        # Verificar se bucket existe, se não, criar
+        if not client.bucket_exists(bucket_name):
+            client.make_bucket(bucket_name)
+            print(f"Bucket '{bucket_name}' criado com sucesso")
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao verificar/criar bucket: {e}")
+        return False
+
+def upload_video_to_minio(video_path, original_filename):
+    """Faz upload do vídeo para o MinIO e retorna a URL"""
+    try:
+        client = get_minio_client()
+        if not client:
+            raise Exception("Erro ao conectar com MinIO")
+        
+        bucket_name = os.getenv('MINIO_BUCKET_NAME', 'disparo')
+        
+        # Garantir que bucket existe
+        if not ensure_bucket_exists():
+            raise Exception("Erro ao garantir existência do bucket")
+        
+        # Gerar nome único para o arquivo
+        file_extension = os.path.splitext(original_filename)[1]
+        unique_filename = f"videos/{uuid.uuid4()}{file_extension}"
+        
+        # Upload do arquivo
+        client.fput_object(bucket_name, unique_filename, video_path)
+        
+        # Gerar URL pública (presigned URL com validade longa)
+        video_url = client.presigned_get_object(bucket_name, unique_filename, expires=datetime.timedelta(days=7))
+        
+        print(f"Vídeo enviado para MinIO: {unique_filename}")
+        print(f"URL gerada: {video_url}")
+        
+        return video_url
+        
+    except S3Error as e:
+        print(f"Erro S3 ao fazer upload: {e}")
+        raise Exception(f"Erro S3: {str(e)}")
+    except Exception as e:
+        print(f"Erro ao fazer upload para MinIO: {e}")
+        raise Exception(f"Erro MinIO: {str(e)}")
 
 # Funções Evolution API
 def get_evolution_api_headers():
@@ -772,7 +844,7 @@ def index():# Verifica se o usuário está autenticado
                 print(f"Imagem convertida para base64, tamanho: {len(image_base64)} caracteres")
 
         # Processar vídeo se fornecida
-        video_base64 = None
+        video_url = None
         if 'video_file' in request.files and request.files['video_file'] and request.files['video_file'].filename:
             video_file = request.files['video_file']
             print(f"Arquivo de vídeo detectado: {video_file.filename}")
@@ -786,20 +858,26 @@ def index():# Verifica se o usuário está autenticado
                 haVideo = True
                 video_path = os.path.join(app.config['UPLOAD_FOLDER'], video_file.filename)
                 video_file.save(video_path)
-                print(f"Vídeo salvo em: {video_path}")
+                print(f"Vídeo salvo temporariamente em: {video_path}")
                 
-                with open(video_path, "rb") as vid_file:
-                    video_data = vid_file.read()
-                    video_size_mb = len(video_data) / (1024 * 1024)
-                    print(f"Tamanho do vídeo: {video_size_mb:.2f} MB")
-                    
-                    # Verificar se o vídeo não é muito grande (limite de 50MB)
-                    if video_size_mb > 50:
-                        print("Erro: Vídeo muito grande")
-                        return render_template('index.html', error=f'Vídeo muito grande ({video_size_mb:.1f}MB). Máximo permitido: 50MB', numbers=numbers)
-                    
-                    video_base64 = base64.b64encode(video_data).decode('utf-8')
-                    print(f"Vídeo convertido para base64, tamanho: {len(video_base64)} caracteres")
+                # Verificar tamanho do arquivo
+                video_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+                print(f"Tamanho do vídeo: {video_size_mb:.2f} MB")
+                
+                # Verificar se o vídeo não é muito grande (limite de 100MB para MinIO)
+                if video_size_mb > 100:
+                    os.remove(video_path)  # Limpar arquivo temporário
+                    print("Erro: Vídeo muito grande")
+                    return render_template('index.html', error=f'Vídeo muito grande ({video_size_mb:.1f}MB). Máximo permitido: 100MB', numbers=numbers)
+                
+                # Upload para MinIO
+                video_url = upload_video_to_minio(video_path, video_file.filename)
+                print(f"Vídeo enviado para MinIO com sucesso")
+                
+                # Remover arquivo temporário
+                os.remove(video_path)
+                print(f"Arquivo temporário removido: {video_path}")
+                
             except Exception as e:
                 print(f"Erro ao processar vídeo: {e}")
                 return render_template('index.html', error=f'Erro ao processar vídeo: {str(e)}', numbers=numbers)
@@ -842,7 +920,7 @@ def index():# Verifica se o usuário está autenticado
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
                     'haVideo': haVideo,
-                    'videoBase64': video_base64 if haVideo else None,
+                    'video_url': video_url if haVideo else None,
                     'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento,
                     'instancia': instancia,
@@ -856,7 +934,7 @@ def index():# Verifica se o usuário está autenticado
                     'haImg': haImg,
                     'base64_size': len(image_base64) if image_base64 else 0,
                     'haVideo': haVideo,
-                    'videoBase64_size': len(video_base64) if video_base64 else 0,
+                    'video_url': video_url if video_url else None,
                     'data_agendamento': data_agendamento,
                     'horario_agendamento': horario_agendamento,
                     'instancia': instancia,
@@ -890,4 +968,4 @@ def index():# Verifica se o usuário está autenticado
     return render_template('index.html', success=False, numbers=numbers)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5001, debug=True)
