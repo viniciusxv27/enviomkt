@@ -968,4 +968,5 @@ def index():# Verifica se o usuário está autenticado
     return render_template('index.html', success=False, numbers=numbers)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5000)
+    #app.run(host="0.0.0.0", port=5001, debug=True)
