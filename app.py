@@ -760,27 +760,49 @@ def index():# Verifica se o usuário está autenticado
 
         # Processar imagem se fornecida
         image_base64 = None
-        if request.files['image_file'] and request.files['image_file'].filename:
+        if 'image_file' in request.files and request.files['image_file'] and request.files['image_file'].filename:
             haImg = True
             image_file = request.files['image_file']
+            print(f"Arquivo de imagem detectado: {image_file.filename}")
+            
             image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_file.filename)
             image_file.save(image_path)
             with open(image_path, "rb") as img_file:
                 image_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+                print(f"Imagem convertida para base64, tamanho: {len(image_base64)} caracteres")
 
         # Processar vídeo se fornecida
         video_base64 = None
-        if request.files['video_file'] and request.files['video_file'].filename:
+        if 'video_file' in request.files and request.files['video_file'] and request.files['video_file'].filename:
             video_file = request.files['video_file']
+            print(f"Arquivo de vídeo detectado: {video_file.filename}")
+            
             # Verificar se é MP4
             if not video_file.filename.lower().endswith('.mp4'):
+                print("Erro: Arquivo não é MP4")
                 return render_template('index.html', error='Apenas arquivos MP4 são permitidos para vídeo', numbers=numbers)
             
-            haVideo = True
-            video_path = os.path.join(app.config['UPLOAD_FOLDER'], video_file.filename)
-            video_file.save(video_path)
-            with open(video_path, "rb") as vid_file:
-                video_base64 = base64.b64encode(vid_file.read()).decode('utf-8')
+            try:
+                haVideo = True
+                video_path = os.path.join(app.config['UPLOAD_FOLDER'], video_file.filename)
+                video_file.save(video_path)
+                print(f"Vídeo salvo em: {video_path}")
+                
+                with open(video_path, "rb") as vid_file:
+                    video_data = vid_file.read()
+                    video_size_mb = len(video_data) / (1024 * 1024)
+                    print(f"Tamanho do vídeo: {video_size_mb:.2f} MB")
+                    
+                    # Verificar se o vídeo não é muito grande (limite de 50MB)
+                    if video_size_mb > 50:
+                        print("Erro: Vídeo muito grande")
+                        return render_template('index.html', error=f'Vídeo muito grande ({video_size_mb:.1f}MB). Máximo permitido: 50MB', numbers=numbers)
+                    
+                    video_base64 = base64.b64encode(video_data).decode('utf-8')
+                    print(f"Vídeo convertido para base64, tamanho: {len(video_base64)} caracteres")
+            except Exception as e:
+                print(f"Erro ao processar vídeo: {e}")
+                return render_template('index.html', error=f'Erro ao processar vídeo: {str(e)}', numbers=numbers)
 
         try:
             if file and file.filename.endswith('.xlsx'):
@@ -827,10 +849,37 @@ def index():# Verifica se o usuário está autenticado
                     'link_planilha': link_planilha
                 }
 
-                print("Payload sendo enviado:", payload)
-                response = requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', json=payload)
-                print("Resposta do webhook:", response.status_code, response.text)
-                return render_template('index.html', success=True, data=payload, numbers=numbers)
+                # Log do payload sem os base64 (que são muito grandes)
+                payload_debug = {
+                    'message': message,
+                    'leads_count': len(leads),
+                    'haImg': haImg,
+                    'base64_size': len(image_base64) if image_base64 else 0,
+                    'haVideo': haVideo,
+                    'videoBase64_size': len(video_base64) if video_base64 else 0,
+                    'data_agendamento': data_agendamento,
+                    'horario_agendamento': horario_agendamento,
+                    'instancia': instancia,
+                    'link_planilha': link_planilha
+                }
+                print("Payload debug:", payload_debug)
+                
+                # Usar timeout maior para vídeos
+                timeout_seconds = 300 if haVideo else 60  # 5 minutos para vídeo, 1 minuto para outros
+                print(f"Enviando para webhook com timeout de {timeout_seconds} segundos...")
+                
+                try:
+                    response = requests.post('https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/disparo-rede-confianca', 
+                                           json=payload, 
+                                           timeout=timeout_seconds)
+                    print("Resposta do webhook:", response.status_code, response.text)
+                    return render_template('index.html', success=True, data=payload_debug, numbers=numbers)
+                except requests.exceptions.Timeout:
+                    print("Erro: Timeout na requisição do webhook")
+                    return render_template('index.html', error='Timeout ao enviar dados para o webhook. Tente com um vídeo menor.', numbers=numbers)
+                except requests.exceptions.RequestException as e:
+                    print(f"Erro na requisição do webhook: {e}")
+                    return render_template('index.html', error=f'Erro ao enviar dados para o webhook: {str(e)}', numbers=numbers)
             else:
                 return render_template('index.html', error='Por favor, selecione um arquivo Excel válido (.xlsx)', numbers=numbers)
             
