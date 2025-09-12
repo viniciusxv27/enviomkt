@@ -174,7 +174,14 @@ def create_evolution_instance(instance_name):
             "instanceName": instance_name,
             "token": os.getenv('EVOLUTION_API_KEY', ''),
             "qrcode": True,
-            "integration": "WHATSAPP-BAILEYS"
+            "integration": "WHATSAPP-BAILEYS",
+            "groupsIgnore": True,
+            "webhook": {
+                "url": "https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/envia-msg-envio",
+                "byEvents": True,
+                "base64": True,
+                "events": ["MESSAGES_UPSERT"],
+            }
         }
         
         response = requests.post(url, json=payload, headers=headers)
@@ -312,13 +319,36 @@ def get_contacts_from_instance(instance_name):
     base_url = os.getenv('EVOLUTION_BASE_URL', '')
     headers = get_evolution_api_headers()
     try:
+        # Tentar primeiro o endpoint padrão
         url = f"{base_url}/chat/findChats/{instance_name}"
+        print(f"🔍 Buscando chats para instância: {instance_name}")
+        print(f"🔗 URL: {url}")
+        
         response = requests.post(url, headers=headers, timeout=15)
+        print(f"📊 Status da resposta: {response.status_code}")
+        
+        # Se falhou, tentar endpoint alternativo
+        if response.status_code != 200:
+            print("⚠️ Tentando endpoint alternativo...")
+            url_alt = f"{base_url}/chat/fetchChats/{instance_name}"
+            print(f"🔗 URL alternativa: {url_alt}")
+            response = requests.post(url_alt, headers=headers, timeout=15)
+            print(f"📊 Status da resposta alternativa: {response.status_code}")
+        
         if response.status_code == 200:
             data = response.json()
+            print(f"📋 Dados recebidos: tipo={type(data)}, tamanho={len(data) if isinstance(data, (list, dict)) else 'N/A'}")
+            
             chats = data if isinstance(data, list) else data.get('data', [])
-            for chat in chats:
+            print(f"💬 Chats encontrados: {len(chats)}")
+            
+            for i, chat in enumerate(chats):
+                if i < 3:  # Log apenas os primeiros 3 para debug
+                    print(f"📱 Chat {i+1}: {chat}")
+                
                 remote_jid = chat.get('remoteJid') or chat.get('id')
+                print(f"🆔 RemoteJid encontrado: {remote_jid}")
+                
                 if remote_jid and not remote_jid.endswith('@g.us'):
                     # Formatar timestamp
                     formatted_time = chat.get('updatedAt', '')
@@ -330,17 +360,25 @@ def get_contacts_from_instance(instance_name):
                         except:
                             formatted_time = 'Data inválida'
                     
-                    contacts.append({
+                    contact = {
                         'remoteJid': remote_jid,
                         'profilePicUrl': chat.get('profilePicUrl', ''),
                         'name': chat.get('pushName') or remote_jid.split('@')[0],
                         'pushName': chat.get('pushName', ''),
                         'formatted_time': formatted_time
-                    })
+                    }
+                    contacts.append(contact)
+                    print(f"✅ Contato adicionado: {contact['name']} ({remote_jid})")
+                else:
+                    print(f"⏭️ Ignorando chat (grupo ou inválido): {remote_jid}")
         else:
             print(f"❌ Erro ao buscar contatos na Evolution API: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"❌ Erro ao buscar contatos na Evolution API: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print(f"📊 Total de contatos retornados: {len(contacts)}")
     return contacts
 
 def get_messages_from_chat(instance_name, remote_jid):
@@ -892,8 +930,11 @@ def index():# Verifica se o usuário está autenticado
             return render_template('index.html', error='Nenhum arquivo Excel foi selecionado', numbers=numbers)
             
         message = request.form.get('message', '').strip()
+        message2 = request.form.get('message2', '').strip()
+        message3 = request.form.get('message3', '').strip()
+        
         if not message:
-            return render_template('index.html', error='Mensagem é obrigatória', numbers=numbers)
+            return render_template('index.html', error='Mensagem principal é obrigatória', numbers=numbers)
 
         instancia = request.form.get('whatsapp_number', '').strip()
         if not instancia:
@@ -983,7 +1024,9 @@ def index():# Verifica se o usuário está autenticado
                 df = pd.read_excel(filepath)
                 data_list = df.to_dict(orient='records')
 
-                print("Mensagem escrita:", message)
+                print("Mensagem principal:", message)
+                print("Mensagem 2:", message2 if message2 else "Não informada")
+                print("Mensagem 3:", message3 if message3 else "Não informada")
                 print("Número WhatsApp selecionado:", instancia)
                 print("Data agendamento:", data_agendamento)
                 print("Horário agendamento:", horario_agendamento)
@@ -1009,6 +1052,8 @@ def index():# Verifica se o usuário está autenticado
 
                 payload = {
                     'message': message,
+                    'message2': message2 if message2 else None,
+                    'message3': message3 if message3 else None,
                     'leads': leads,
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
@@ -1023,6 +1068,8 @@ def index():# Verifica se o usuário está autenticado
                 # Log do payload sem os base64 (que são muito grandes)
                 payload_debug = {
                     'message': message,
+                    'message2': message2 if message2 else None,
+                    'message3': message3 if message3 else None,
                     'leads_count': len(leads),
                     'haImg': haImg,
                     'base64_size': len(image_base64) if image_base64 else 0,

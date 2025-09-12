@@ -3,33 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <title>Gerenciar Números WhatsApp - VIVO</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             background: linear-gradient(135deg, #e0e7ff 0%, #f5f7fa 100%);
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
             min-height: 100vh;
             margin: 0;
             padding: 20px;
         }
         .container {
             background: #fff;
-            max-width: 800px;
+            max-width: 1000px;
             margin: 20px auto;
             padding: 40px 36px;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(44, 62, 80, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .header {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .vivo-logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(44, 62, 80, 0.08);
         }
         h1 {
             color: #2c3e50;
             font-size: 1.8rem;
             font-weight: 700;
-            margin: 0;
+            margin: 0 0 20px 0;
+        }
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         .btn {
             background: linear-gradient(135deg, #6c47ff 0%, #5b3de8 100%);
@@ -58,23 +75,43 @@
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .table-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
         th, td {
-            padding: 12px 16px;
+            padding: 16px 20px;
             text-align: left;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e9ecef;
         }
         th {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #6c47ff 0%, #5b3de8 100%);
+            color: white;
             font-weight: 600;
-            color: #2c3e50;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        tr:hover {
-            background-color: #f8f9fa;
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+        tbody tr:hover {
+            background-color: #f1f3f5;
+            transform: translateY(-1px);
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
         }
         .empty-state {
             text-align: center;
@@ -146,26 +183,84 @@
         }
         .actions-cell {
             white-space: nowrap;
-            min-width: 200px;
+            min-width: 280px;
+        }
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
         }
         .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.85rem;
-            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            border-radius: 8px;
             text-decoration: none;
-            margin: 0 2px;
-            display: inline-block;
-            transition: all 0.2s;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-sm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Cores específicas para cada botão */
+        .btn-edit {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+        }
+        .btn-messages {
+            background: linear-gradient(135deg, #28a745, #1e7e34);
+            color: white;
+        }
+        .btn-reconnect {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            color: #212529;
+            font-weight: 600;
+        }
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 16px;
+                margin: 10px;
+            }
+            .table-container {
+                padding: 15px;
+                overflow-x: auto;
+            }
+            th, td {
+                padding: 12px 8px;
+                font-size: 0.85rem;
+            }
+            .action-buttons {
+                flex-direction: column;
+                gap: 4px;
+            }
+            .btn-sm {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+                width: 100%;
+                text-align: center;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📱 Números WhatsApp</h1>
-            <div>
+            <img src="https://media.licdn.com/dms/image/v2/D4D0BAQFlKIJlEUoCbQ/company-logo_200_200/B4DZZjECDoHwAI-/0/1745418724233?e=2147483647&v=beta&t=3tV_Q9dl5u037NT3TNeZcuuP9_0cRvaDTrHN3RH1nSM" alt="Vivo Logo" class="vivo-logo">
+            <h1>📱 Gerenciar Números WhatsApp</h1>
+            <div class="header-actions">
                 <a href="/numeros/criar" class="btn">➕ Adicionar Número</a>
-                <a href="/" class="btn-secondary" style="margin-left: 12px;">← Voltar</a>
+                <a href="/" class="btn-secondary">← Voltar ao Menu</a>
             </div>
         </div>
 
@@ -176,51 +271,53 @@
         {% endif %}
 
         {% if numbers %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Número</th>
-                    <th>Descrição</th>
-                    <th>Status</th>
-                    <th>Instância</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for number in numbers %}
-                <tr>
-                    <td><strong>{{ number.numero }}</strong></td>
-                    <td>{{ number.descricao }}</td>
-                    <td>
-                        <span class="status-badge {{ number.status_class }}">
-                            {{ number.status }}
-                        </span>
-                    </td>
-                    <td>{{ number.instancia }}</td>
-                    <td class="actions-cell">
-                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                            <a href="/numeros/editar/{{ number.id }}" class="btn-sm btn-edit">
-                                ✏️ Editar
-                            </a>
-                            <a href="/chats/{{ number.instancia }}" class="btn-sm btn-messages">
-                                💬 Ver Chats
-                            </a>
-                            {% if number.status_class == 'disconnected' %}
-                            <a href="/numeros/reconectar/{{ number.instancia }}" class="btn-sm btn-reconnect">
-                                🔄 Reconectar
-                            </a>
-                            {% endif %}
-                            <form method="POST" action="/numeros/remover/{{ number.id }}" style="display: inline;" onsubmit="return confirm('⚠️ Tem certeza que deseja remover este número?\n\n{{ number.numero }} - {{ number.descricao }}\n\nEsta ação não pode ser desfeita!')">
-                                <button type="submit" class="btn-sm btn-delete">
-                                    🗑️ Remover
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>📱 Número</th>
+                        <th>📝 Descrição</th>
+                        <th>🔌 Status</th>
+                        <th>🏷️ Instância</th>
+                        <th>⚙️ Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for number in numbers %}
+                    <tr>
+                        <td><strong>{{ number.numero }}</strong></td>
+                        <td>{{ number.descricao }}</td>
+                        <td>
+                            <span class="status-badge {{ number.status_class }}">
+                                {{ number.status }}
+                            </span>
+                        </td>
+                        <td><code>{{ number.instancia }}</code></td>
+                        <td class="actions-cell">
+                            <div class="action-buttons">
+                                <a href="/numeros/editar/{{ number.id }}" class="btn-sm btn-edit">
+                                    ✏️ Editar
+                                </a>
+                                <a href="/chats/{{ number.instancia }}" class="btn-sm btn-messages">
+                                    💬 Chats
+                                </a>
+                                {% if number.status_class == 'disconnected' %}
+                                <a href="/numeros/reconectar/{{ number.instancia }}" class="btn-sm btn-reconnect">
+                                    🔄 Reconectar
+                                </a>
+                                {% endif %}
+                                <form method="POST" action="/numeros/remover/{{ number.id }}" style="display: contents;" onsubmit="return confirm('⚠️ Tem certeza que deseja remover este número?\n\n{{ number.numero }} - {{ number.descricao }}\n\nEsta ação não pode ser desfeita!')">
+                                    <button type="submit" class="btn-sm btn-delete">
+                                        🗑️ Remover
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
         <div class="empty-state">
             <h3>📵 Nenhum número cadastrado</h3>
