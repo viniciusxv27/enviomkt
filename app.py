@@ -320,7 +320,7 @@ def get_contacts_from_instance(instance_name):
     headers = get_evolution_api_headers()
     try:
         # Tentar primeiro o endpoint padrão
-        url = f"{base_url}/chat/findChats/{instance_name}"
+        url = f"{base_url}/chat/findContacts/{instance_name}"
         print(f"🔍 Buscando chats para instância: {instance_name}")
         print(f"🔗 URL: {url}")
         
@@ -330,7 +330,7 @@ def get_contacts_from_instance(instance_name):
         # Se falhou, tentar endpoint alternativo
         if response.status_code != 200:
             print("⚠️ Tentando endpoint alternativo...")
-            url_alt = f"{base_url}/chat/fetchChats/{instance_name}"
+            url_alt = f"{base_url}/chat/findChats/{instance_name}"
             print(f"🔗 URL alternativa: {url_alt}")
             response = requests.post(url_alt, headers=headers, timeout=15)
             print(f"📊 Status da resposta alternativa: {response.status_code}")
@@ -470,7 +470,8 @@ def get_db_connection():
             host=os.getenv('DB_HOST', 'localhost'),
             database=os.getenv('DB_NAME', 'whatsapp'),
             user=os.getenv('DB_USER', 'root'),
-            password=os.getenv('DB_PASSWORD', '')
+            password=os.getenv('DB_PASSWORD', ''),
+            #port=int(os.getenv('DB_PORT', 3306))
         )
         return connection
     except Error as e:
@@ -484,7 +485,8 @@ def get_evolution_db_connection():
             host=os.getenv('EVOLUTION_DB_HOST', 'localhost'),
             database=os.getenv('EVOLUTION_DB_NAME', 'evolution'),
             user=os.getenv('EVOLUTION_DB_USER', 'root'),
-            password=os.getenv('EVOLUTION_DB_PASSWORD', '')
+            password=os.getenv('EVOLUTION_DB_PASSWORD', ''),
+            #port=int(os.getenv('EVOLUTION_DB_PORT', 3306))
         )
         return connection
     except Error as e:
@@ -1108,5 +1110,5 @@ def index():# Verifica se o usuário está autenticado
     return render_template('index.html', success=False, numbers=numbers)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
-    #app.run(host="0.0.0.0", port=5001, debug=True)
+    #app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5001, debug=True)
