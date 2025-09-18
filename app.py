@@ -1054,8 +1054,8 @@ def index():# Verifica se o usuário está autenticado
 
                 payload = {
                     'message': message,
-                    'message2': message2 if message2 else None,
-                    'message3': message3 if message3 else None,
+                    'message2': message2 if message2 else message,
+                    'message3': message3 if message3 else message,
                     'leads': leads,
                     'haImg': haImg,
                     'base64': image_base64 if haImg else None,
