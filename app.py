@@ -178,7 +178,6 @@ def create_evolution_instance(instance_name):
             "groupsIgnore": True,
             "webhook": {
                 "url": "https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/envia-msg-envio",
-                "byEvents": True,
                 "base64": True,
                 "events": ["MESSAGES_UPSERT"],
             }
