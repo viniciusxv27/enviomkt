@@ -176,20 +176,30 @@ def create_evolution_instance(instance_name):
             "qrcode": True,
             "integration": "WHATSAPP-BAILEYS",
             "groupsIgnore": True,
+            "syncFullHistory": True,
             "webhook": {
                 "url": "https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/envia-msg-envio",
                 "base64": True,
                 "events": ["MESSAGES_UPSERT"],
             },
-            "chatwootAccountId": 2,
+            "chatwootAccountId": str(2),
+            "chatwootReopenConversation": True,
+            "chatwootConversationPending": False,
             "chatwootToken" : "rkPS5jHxF8yrobTEfpRVbVmX",
+            "chatwootSignMsg" : True,
             "chatwootUrl" : "https://rede-confianca-chatwoot.lpl0df.easypanel.host/",
             "chatwootImportContacts": True,
             "chatwootNameInbox": instance_name,
-            "chatwootImportMessages": True
+            "chatwootImportMessages": True,
+            "chatwootDaysLimitImportMessages": 7,
+            "chatwootOrganization": "Rede Confiança"
         }
         
         response = requests.post(url, json=payload, headers=headers)
+        print(f"Response status: {response.status_code}")
+        print(f"Response text: {response.text}")
+        print(f"Response: {response}")
+
         return response.status_code == 201
     except Exception as e:
         print(f"Erro ao criar instância Evolution: {e}")
