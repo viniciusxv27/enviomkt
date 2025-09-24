@@ -180,7 +180,13 @@ def create_evolution_instance(instance_name):
                 "url": "https://rede-confianca-n8n.lpl0df.easypanel.host/webhook/envia-msg-envio",
                 "base64": True,
                 "events": ["MESSAGES_UPSERT"],
-            }
+            },
+            "chatwootAccountId": 2,
+            "chatwootToken" : "rkPS5jHxF8yrobTEfpRVbVmX",
+            "chatwootUrl" : "https://rede-confianca-chatwoot.lpl0df.easypanel.host/",
+            "chatwootImportContacts": True,
+            "chatwootNameInbox": instance_name,
+            "chatwootImportMessages": True
         }
         
         response = requests.post(url, json=payload, headers=headers)
