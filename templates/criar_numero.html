@@ -316,10 +316,10 @@
     <script>
         let isConnected = false;
         let statusCheckCount = 0;
-        const maxStatusChecks = 100; // Máximo 5 minutos (100 * 3 segundos)
+        const maxStatusChecks = 20; // Máximo 5 minutos (20 * 15 segundos)
         const isReconnect = {{ 'true' if reconnect else 'false' }};
         
-        // Verificar status da conexão a cada 3 segundos
+        // Verificar status da conexão a cada 15 segundos
         function checkConnectionStatus() {
             statusCheckCount++;
             console.log(`Verificação ${statusCheckCount}: Checando status da instância {{ instancia }}`);
@@ -337,7 +337,7 @@
                     const qrImage = document.querySelector('.qr-code');
                     const qrError = document.getElementById('qr-error');
                     
-                    if (data.connected) {
+                    if (data.connected || data.status === 'open') {
                         console.log('WhatsApp conectado!');
                         isConnected = true;
                         statusDiv.className = 'qr-status status-connected';
@@ -349,17 +349,22 @@
                             window.location.href = '/numeros';
                         }, 2000);
                         {% else %}
-                        statusDiv.innerHTML = '✅ WhatsApp Conectado! Agora você pode prosseguir.';
-                        saveButton.disabled = false;
-                        saveButton.style.opacity = '1';
-                        saveButton.style.cursor = 'pointer';
+                        statusDiv.innerHTML = '✅ WhatsApp Conectado! Aguarde alguns segundos antes de salvar...';
+                        
+                        // Aguardar um pouco antes de habilitar o botão para garantir estabilidade
+                        setTimeout(() => {
+                            saveButton.disabled = false;
+                            saveButton.style.opacity = '1';
+                            saveButton.style.cursor = 'pointer';
+                            statusDiv.innerHTML = '✅ WhatsApp Conectado! Agora você pode prosseguir.';
+                        }, 3000);
                         {% endif %}
                         
-                        // Para as verificações após conectar
+                        // Para as verificações após conectar (mas só depois de um tempo)
                         setTimeout(() => {
                             clearInterval(statusInterval);
                             console.log('Parou verificações - WhatsApp conectado');
-                        }, 2000);
+                        }, 5000);
                         
                     } else if (data.status === 'connecting') {
                         statusDiv.className = 'qr-status status-waiting';
@@ -390,19 +395,16 @@
                     console.error('Erro ao verificar status:', error);
                     const statusDiv = document.getElementById('connectionStatus');
                     statusDiv.className = 'qr-status status-error';
-                    statusDiv.innerHTML = '❌ Erro de conexão. Recarregando...';
+                    statusDiv.innerHTML = '❌ Erro de conexão. Tentando novamente...';
                     
-                    // Tentar recarregar após erro
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 5000);
+                    // Não recarregar automaticamente, apenas continuar tentando
                 });
         }
 
-        // Verificar status inicial e depois a cada 3 segundos
+        // Verificar status inicial e depois a cada 15 segundos
         console.log('Iniciando verificação de status');
         checkConnectionStatus();
-        const statusInterval = setInterval(checkConnectionStatus, 3000);
+        const statusInterval = setInterval(checkConnectionStatus, 15000);
         
         // Para o intervalo quando sair da página
         window.addEventListener('beforeunload', function() {
@@ -410,12 +412,29 @@
             console.log('Parou verificações - saindo da página');
         });
         
-        // Melhorar visual do botão salvar
+        // Melhorar visual do botão salvar e adicionar validação
         document.addEventListener('DOMContentLoaded', function() {
             const saveButton = document.getElementById('saveButton');
+            const numberForm = document.getElementById('numberForm');
+            
             if (saveButton) {
                 saveButton.style.opacity = '0.5';
                 saveButton.style.cursor = 'not-allowed';
+            }
+            
+            // Prevenir envio do formulário se não estiver conectado
+            if (numberForm) {
+                numberForm.addEventListener('submit', function(e) {
+                    if (!isConnected) {
+                        e.preventDefault();
+                        alert('⚠️ Aguarde a conexão do WhatsApp ser estabelecida antes de salvar!');
+                        return false;
+                    }
+                    
+                    // Mostrar loading no botão
+                    saveButton.innerHTML = '⏳ Salvando...';
+                    saveButton.disabled = true;
+                });
             }
         });
     </script>

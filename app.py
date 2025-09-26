@@ -274,19 +274,45 @@ def get_qrcode_evolution(instance_name):
 def get_instance_status(instance_name):
     """Verifica o status de uma instância na Evolution API"""
     try:
-        # Primeiro tenta buscar instância específica
-        url = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/fetchInstances"
         headers = get_evolution_api_headers()
         
         print(f"Verificando status da instância: {instance_name}")
-        print(f"URL: {url}")
         
-        response = requests.get(url, headers=headers)
+        # Lista de endpoints para tentar
+        endpoints = [
+            f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/{instance_name}",
+            f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/fetchInstances"
+        ]
+        
+        # Tentar primeiro endpoint específico da instância
+        url = endpoints[0]
+        print(f"Tentando URL específica: {url}")
+        
+        response = requests.get(url, headers=headers, timeout=10)
         print(f"Response status: {response.status_code}")
         
         if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, dict):
+                # Diferentes formas que o status pode vir
+                status = data.get('state') or data.get('connectionStatus') or data.get('status')
+                if status:
+                    print(f"Status encontrado na URL específica: {status}")
+                    # Normalizar diferentes valores que significam "conectado"
+                    if status.lower() in ['open', 'connected', 'online']:
+                        return 'open'
+                    return status
+        
+        # Se não funcionou, tentar buscar todas as instâncias
+        url = endpoints[1]
+        print(f"Tentando URL geral: {url}")
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        print(f"Response status 2: {response.status_code}")
+        
+        if response.status_code == 200:
             instances = response.json()
-            print(f"Instâncias encontradas: {len(instances) if isinstance(instances, list) else 'Não é lista'}")
+            print(f"Tipo de resposta: {type(instances)}")
             
             # Se a resposta é uma lista
             if isinstance(instances, list):
@@ -294,38 +320,59 @@ def get_instance_status(instance_name):
                     if isinstance(instance, dict):
                         # Verifica diferentes estruturas possíveis
                         instance_data = instance.get('instance', instance)
-                        if instance_data.get('instanceName') == instance_name or instance_data.get('name') == instance_name:
-                            status = instance_data.get('state', instance_data.get('connectionStatus', 'close'))
-                            print(f"Status encontrado: {status}")
+                        name_check = (
+                            instance_data.get('instanceName') == instance_name or 
+                            instance_data.get('name') == instance_name or
+                            instance.get('instanceName') == instance_name or
+                            instance.get('name') == instance_name
+                        )
+                        
+                        if name_check:
+                            status = (
+                                instance_data.get('state') or 
+                                instance_data.get('connectionStatus') or 
+                                instance.get('state') or 
+                                instance.get('connectionStatus') or
+                                'close'
+                            )
+                            print(f"Status encontrado na lista: {status}")
+                            # Normalizar diferentes valores que significam "conectado"
+                            if status.lower() in ['open', 'connected', 'online']:
+                                return 'open'
                             return status
             
             # Se a resposta é um objeto
             elif isinstance(instances, dict):
                 for key, instance in instances.items():
                     if isinstance(instance, dict):
-                        if instance.get('instanceName') == instance_name or instance.get('name') == instance_name:
-                            status = instance.get('state', instance.get('connectionStatus', 'close'))
-                            print(f"Status encontrado: {status}")
+                        name_check = (
+                            instance.get('instanceName') == instance_name or 
+                            instance.get('name') == instance_name or
+                            key == instance_name
+                        )
+                        
+                        if name_check:
+                            status = (
+                                instance.get('state') or 
+                                instance.get('connectionStatus') or 
+                                'close'
+                            )
+                            print(f"Status encontrado no objeto: {status}")
+                            # Normalizar diferentes valores que significam "conectado"
+                            if status.lower() in ['open', 'connected', 'online']:
+                                return 'open'
                             return status
         
-        # Tenta endpoint alternativo
-        url2 = f"{os.getenv('EVOLUTION_BASE_URL', '')}/instance/{instance_name}"
-        response2 = requests.get(url2, headers=headers)
-        print(f"Tentando URL alternativa: {url2}")
-        print(f"Response status 2: {response2.status_code}")
-        
-        if response2.status_code == 200:
-            data = response2.json()
-            if isinstance(data, dict):
-                status = data.get('state', data.get('connectionStatus', 'close'))
-                print(f"Status alternativo: {status}")
-                return status
-        
-        print("Status não encontrado, retornando 'close'")
+        print("Status não encontrado em nenhum endpoint, retornando 'close'")
         return 'close'
         
+    except requests.exceptions.Timeout:
+        print(f"Timeout ao buscar status da instância: {instance_name}")
+        return 'close'
     except Exception as e:
         print(f"Erro ao buscar status da instância: {e}")
+        import traceback
+        traceback.print_exc()
         return 'close'
 
 def get_contacts_from_instance(instance_name):
@@ -681,15 +728,27 @@ def criar_numero():
             if not all([numero, remotejid, descricao, instancia]):
                 return render_template('criar_numero.html', error='Todos os campos são obrigatórios')
             
-            # Verificar se a instância está conectada
-            status = get_instance_status(instancia)
+            # Verificar se a instância está conectada com múltiplas tentativas
+            status = None
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                status = get_instance_status(instancia)
+                print(f"Tentativa {attempt + 1} de verificação de status: {status}")
+                
+                if status == 'open':
+                    break
+                    
+                # Aguardar um pouco antes da próxima tentativa
+                if attempt < max_attempts - 1:
+                    time.sleep(2)
+            
             if status != 'open':
                 qr_code = get_qrcode_evolution(instancia)
                 return render_template('criar_numero.html', 
                                      instancia=instancia,
                                      qr_code=qr_code,
                                      show_qr=True,
-                                     error='WhatsApp ainda não está conectado. Escaneie o QR Code.')
+                                     error=f'WhatsApp ainda não está conectado (Status: {status}). Escaneie o QR Code novamente.')
             
             # Salvar o número no banco
             if create_whatsapp_number(numero, remotejid, descricao, instancia, link_planilha):
@@ -706,31 +765,43 @@ def check_instance_status(instance_name):
         return {'status': 'error', 'message': 'Não autorizado'}, 401
     
     try:
-        status = get_instance_status(instance_name)
+        # Verificar status com múltiplas tentativas para maior confiabilidade
+        status = None
+        for attempt in range(2):
+            status = get_instance_status(instance_name)
+            if status and status != 'close':
+                break
+            if attempt == 0:  # Só dar timeout na primeira tentativa
+                time.sleep(1)
+        
         qr_code = None
         
         print(f"Status da instância {instance_name}: {status}")
         
         # Se não está conectado, tentar buscar QR Code
-        if status not in ['open', 'connected']:
+        if status not in ['open', 'connected', 'online']:
             qr_code = get_qrcode_evolution(instance_name)
             print(f"QR Code obtido: {'Sim' if qr_code else 'Não'}")
         
         # Mapear status para valores mais claros
-        connected = status in ['open', 'connected']
+        connected = status in ['open', 'connected', 'online']
         
         return {
             'status': status, 
             'connected': connected,
             'qr_code': qr_code,
-            'timestamp': int(time.time()) if 'time' in globals() else None
+            'timestamp': int(time.time()),
+            'instance_name': instance_name
         }
     except Exception as e:
         print(f"Erro na API de status: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'status': 'error',
             'connected': False,
-            'error': str(e)
+            'error': str(e),
+            'instance_name': instance_name
         }, 500
 
 @app.route('/debug/qr/<string:instance_name>')
