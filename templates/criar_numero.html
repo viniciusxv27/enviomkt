@@ -372,7 +372,7 @@
                         
                     } else {
                         statusDiv.className = 'qr-status status-waiting';
-                        statusDiv.innerHTML = '� Escaneie o QR Code com seu WhatsApp';
+                        statusDiv.innerHTML = '📷 Escaneie o QR Code com seu WhatsApp';
                         
                         // Atualizar QR Code se disponível
                         if (data.qr_code && qrImage) {
@@ -404,7 +404,7 @@
         // Verificar status inicial e depois a cada 15 segundos
         console.log('Iniciando verificação de status');
         checkConnectionStatus();
-        const statusInterval = setInterval(checkConnectionStatus, 15000);
+        const statusInterval = setInterval(checkConnectionStatus, 25000);
         
         // Para o intervalo quando sair da página
         window.addEventListener('beforeunload', function() {
